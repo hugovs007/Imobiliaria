@@ -74,7 +74,7 @@ export function RenewalForm({
               <p className="mt-1 font-semibold">{index.toUpperCase()}</p>
             </div>
             <p className="col-span-2 text-xs leading-5" style={{ color: "var(--color-ink-soft)" }}>
-              O aluguel vigente, com reajustes já aplicados, será mantido. Se um novo reajuste anual vencer na data da renovação, o índice cadastrado será aplicado uma vez antes da criação do novo contrato.
+              Quando o reajuste anual vencer, o índice cadastrado será aplicado ao aluguel vigente. O novo valor será arredondado para cima ao próximo múltiplo de R$ 5.
             </p>
           </div>
 

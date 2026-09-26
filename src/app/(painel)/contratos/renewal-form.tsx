@@ -50,7 +50,7 @@ export function RenewalForm({
                 Renovar contrato
               </h2>
               <p className="mt-1 text-sm" style={{ color: "var(--color-ink-soft)" }}>
-                O contrato atual será encerrado como renovado e um novo período será criado.
+                O contrato atual ficará intacto e um novo período de 12 meses será criado.
               </p>
             </div>
             <button
@@ -74,7 +74,7 @@ export function RenewalForm({
               <p className="mt-1 font-semibold">{index.toUpperCase()}</p>
             </div>
             <p className="col-span-2 text-xs leading-5" style={{ color: "var(--color-ink-soft)" }}>
-              Em cada renovação, o índice cadastrado no contrato será aplicado ao aluguel vigente. O novo valor será arredondado para cima ao próximo múltiplo de R$ 5; o contrato anterior mantém o próprio valor e as próprias datas.
+              O índice cadastrado será aplicado ao aluguel vigente. O novo valor será arredondado para cima ao próximo múltiplo de R$ 5; o contrato anterior não será alterado.
             </p>
           </div>
 
@@ -109,15 +109,12 @@ export function RenewalForm({
                 style={{ borderColor: "var(--color-line)" }}
               />
             </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span style={{ color: "var(--color-ink-soft)" }}>Fim do novo período (opcional)</span>
-              <input
-                name="data_fim"
-                type="date"
-                className="rounded-sm border px-3 py-2"
-                style={{ borderColor: "var(--color-line)" }}
-              />
-            </label>
+            <div className="flex flex-col justify-center gap-1 text-sm">
+              <span style={{ color: "var(--color-ink-soft)" }}>Duração do novo contrato</span>
+              <span className="rounded-sm border px-3 py-2" style={{ borderColor: "var(--color-line)" }}>
+                12 meses; término calculado automaticamente
+              </span>
+            </div>
             {error && (
               <p role="alert" className="text-sm sm:col-span-2" style={{ color: "var(--color-alert)" }}>
                 {error}

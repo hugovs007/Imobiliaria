@@ -16,9 +16,15 @@ export default async function PagamentosPage() {
       .order("competencia", { ascending: false }),
     supabase
       .from("contratos")
-      .select("id, valor_aluguel_atual, imoveis(endereco), inquilinos(nome)")
-      .eq("status", "ativo"),
+      .select("id, status, contrato_anterior_id, valor_aluguel_atual, imoveis(endereco), inquilinos(nome)"),
   ]);
+
+  const contratosComSucessor = new Set(
+    (contratos ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
+  );
+  const contratosVigentes = (contratos ?? []).filter(
+    (contrato) => contrato.status === "ativo" && !contratosComSucessor.has(contrato.id)
+  );
 
   return (
     <div>
@@ -30,7 +36,7 @@ export default async function PagamentosPage() {
             label="Contrato"
             name="contrato_id"
             required
-            options={(contratos ?? []).map((c) => ({
+            options={contratosVigentes.map((c) => ({
               value: c.id,
               label: `${(c.imoveis as unknown as { endereco: string })?.endereco} — ${(c.inquilinos as unknown as { nome: string })?.nome}`,
             }))}

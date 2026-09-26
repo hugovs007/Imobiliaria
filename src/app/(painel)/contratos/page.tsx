@@ -19,7 +19,7 @@ export default async function ContratosPage() {
       supabase
         .from("contratos")
         .select(
-          "id, imovel_id, inquilino_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco), inquilinos(nome)"
+          "id, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco), inquilinos(nome)"
         )
         .order("created_at", { ascending: false }),
       supabase.from("imoveis").select("id, codigo, endereco").eq("status", "disponivel"),
@@ -29,6 +29,9 @@ export default async function ContratosPage() {
         .select("id, data_referencia, indice_usado, percentual_aplicado, valor_anterior, valor_novo, contratos(imoveis(endereco))")
         .eq("status", "pendente"),
     ]);
+  const contratosComSucessor = new Set(
+    (contratos ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
+  );
 
   return (
     <div>
@@ -125,6 +128,9 @@ export default async function ContratosPage() {
         <Table head={["Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", ""]}>
           {(contratos ?? []).map((c) => {
             const imovel = c.imoveis as unknown as { id: string; codigo: string | null; endereco: string };
+            const possuiRenovacao = contratosComSucessor.has(c.id);
+            const contratoVigente = c.status === "ativo" && !possuiRenovacao;
+            const statusExibido = c.status === "ativo" && possuiRenovacao ? "renovado" : c.status;
             return (
               <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
                 <td className="px-4 py-2.5">{imovel?.endereco}</td>
@@ -135,10 +141,10 @@ export default async function ContratosPage() {
                 </td>
                 <td className="px-4 py-2.5 uppercase">{c.indice_reajuste}</td>
                 <td className="px-4 py-2.5">
-                  <StatusBadge status={c.status} />
+                  <StatusBadge status={statusExibido} />
                 </td>
                 <td className="px-4 py-2.5">
-                  {c.status === "ativo" && (
+                  {contratoVigente && (
                     <div className="flex flex-col items-start gap-2">
                       <form action={encerrarContrato}>
                         <input type="hidden" name="id" value={c.id} />

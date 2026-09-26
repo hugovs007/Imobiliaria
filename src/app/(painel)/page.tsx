@@ -9,8 +9,7 @@ export default async function DashboardPage() {
       supabase.from("imoveis").select("*", { count: "exact", head: true }),
       supabase
         .from("contratos")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "ativo"),
+        .select("id, status, contrato_anterior_id"),
       supabase
         .from("pagamentos")
         .select("*", { count: "exact", head: true })
@@ -25,9 +24,16 @@ export default async function DashboardPage() {
         .eq("status", "pendente"),
     ]);
 
+  const contratosComSucessor = new Set(
+    (contratosAtivos.data ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
+  );
+  const totalContratosVigentes = (contratosAtivos.data ?? []).filter(
+    (contrato) => contrato.status === "ativo" && !contratosComSucessor.has(contrato.id)
+  ).length;
+
   const cards = [
     { label: "Imóveis cadastrados", value: imoveis.count ?? 0 },
-    { label: "Contratos ativos", value: contratosAtivos.count ?? 0 },
+    { label: "Contratos ativos", value: totalContratosVigentes },
     { label: "Pagamentos em atraso", value: pagamentosAtrasados.count ?? 0, alert: true },
     { label: "Manutenções em aberto", value: manutencoesAbertas.count ?? 0 },
     { label: "Reajustes pendentes", value: reajustesPendentes.count ?? 0 },

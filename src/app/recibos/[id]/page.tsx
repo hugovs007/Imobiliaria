@@ -98,13 +98,22 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
         </div>
 
         <article className="border border-neutral-300 bg-white p-6 sm:p-12 print:border-0 print:p-0">
-          <header className="flex flex-wrap items-start justify-between gap-4 border-b border-neutral-300 pb-6">
-            <div>
+          <header className="border-b border-neutral-300 pb-6">
+            <div className="flex items-start justify-between gap-4">
               <p className="text-xs font-semibold uppercase text-neutral-500">Gestão de Aluguéis</p>
-              <h1 className="mt-2 text-3xl font-semibold">Recibo de pagamento</h1>
-              <p className="mt-2 text-sm text-neutral-600">Recibo de aluguel</p>
+              <p className="text-sm text-neutral-500">Nº {pagamento.id.slice(0, 8).toUpperCase()}</p>
             </div>
-            <p className="text-sm text-neutral-500">Nº {pagamento.id.slice(0, 8).toUpperCase()}</p>
+            <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h1 className="text-3xl font-semibold">Recibo de pagamento</h1>
+                <p className="mt-1 text-sm text-neutral-600">Recibo de aluguel</p>
+              </div>
+              {identificacaoParcela && (
+                <p className="text-right text-sm text-neutral-700">
+                  Parcela do contrato <strong className="ml-1 text-lg">{identificacaoParcela}</strong>
+                </p>
+              )}
+            </div>
           </header>
 
           <section className="space-y-6 py-8">
@@ -141,12 +150,6 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
                 <dt className="text-xs uppercase text-neutral-500">Competência</dt>
                 <dd className="mt-1 font-medium">{competencia}</dd>
               </div>
-              {identificacaoParcela && (
-                <div>
-                  <dt className="text-xs uppercase text-neutral-500">Parcela do contrato</dt>
-                  <dd className="mt-1 text-lg font-semibold">{identificacaoParcela}</dd>
-                </div>
-              )}
             </dl>
 
             <p className="text-sm leading-6 text-neutral-700">
@@ -154,7 +157,7 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
             </p>
           </section>
 
-          <footer className="mt-16 max-w-sm text-center">
+          <footer className="mx-auto mt-16 max-w-sm text-center">
             <div className="border-t border-neutral-400 pt-2">
               <p className="text-sm">{imovel?.proprietarios?.nome ?? "Proprietário do imóvel"}</p>
               <p className="mt-1 text-xs text-neutral-500">Recebedor</p>

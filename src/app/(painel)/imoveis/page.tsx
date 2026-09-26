@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Card, Field, PageHeader, Select, StatusBadge, Table, TextArea, Money, Button } from "@/components/ui";
+import { RecordEditor } from "@/components/record-editor";
 import { criarImovel } from "./actions";
 
 export default async function ImoveisPage() {
@@ -7,7 +8,7 @@ export default async function ImoveisPage() {
   const [{ data: imoveis }, { data: proprietarios }] = await Promise.all([
     supabase
       .from("imoveis")
-      .select("id, codigo, endereco, cidade, estado, tipo, status, valor_aluguel_base, proprietarios(nome)")
+      .select("id, codigo, proprietario_id, endereco, numero, bairro, cidade, estado, cep, tipo, status, quartos, area_m2, valor_aluguel_base, observacoes, proprietarios(nome)")
       .order("created_at", { ascending: false }),
     supabase.from("proprietarios").select("id, nome").order("nome"),
   ]);
@@ -61,7 +62,7 @@ export default async function ImoveisPage() {
       </Card>
 
       <div className="mt-8">
-        <Table head={["Código", "Endereço", "Cidade/UF", "Tipo", "Proprietário", "Aluguel base", "Status"]}>
+        <Table head={["Código", "Endereço", "Cidade/UF", "Tipo", "Proprietário", "Aluguel base", "Status", ""]}>
           {(imoveis ?? []).map((i) => (
             <tr key={i.id} style={{ borderTop: "1px solid var(--color-line)" }}>
               <td className="px-4 py-2.5">{i.codigo ?? "—"}</td>
@@ -76,6 +77,51 @@ export default async function ImoveisPage() {
               </td>
               <td className="px-4 py-2.5">
                 <StatusBadge status={i.status} />
+              </td>
+              <td className="px-4 py-2.5">
+                <RecordEditor
+                  entity="imoveis"
+                  id={i.id}
+                  fields={[
+                    { name: "codigo", label: "Código interno", value: i.codigo },
+                    {
+                      name: "proprietario_id",
+                      label: "Proprietário",
+                      kind: "select",
+                      value: i.proprietario_id,
+                      options: [{ value: "", label: "— não vinculado —" }, ...(proprietarios ?? []).map((p) => ({ value: p.id, label: p.nome }))],
+                    },
+                    { name: "endereco", label: "Endereço", value: i.endereco, required: true },
+                    { name: "numero", label: "Número", value: i.numero },
+                    { name: "bairro", label: "Bairro", value: i.bairro },
+                    { name: "cidade", label: "Cidade", value: i.cidade, required: true },
+                    { name: "estado", label: "Estado (UF)", value: i.estado, required: true },
+                    { name: "cep", label: "CEP", value: i.cep },
+                    {
+                      name: "tipo",
+                      label: "Tipo",
+                      kind: "select",
+                      value: i.tipo,
+                      options: [{ value: "residencial", label: "Residencial" }, { value: "comercial", label: "Comercial" }],
+                    },
+                    { name: "quartos", label: "Quartos", value: i.quartos, type: "number" },
+                    { name: "area_m2", label: "Área (m²)", value: i.area_m2, type: "number", step: "0.01" },
+                    { name: "valor_aluguel_base", label: "Aluguel base (R$)", value: i.valor_aluguel_base, type: "number", step: "0.01", required: true },
+                    {
+                      name: "status",
+                      label: "Status",
+                      kind: "select",
+                      value: i.status,
+                      options: [
+                        { value: "disponivel", label: "Disponível" },
+                        { value: "alugado", label: "Alugado" },
+                        { value: "manutencao", label: "Em manutenção" },
+                        { value: "inativo", label: "Inativo" },
+                      ],
+                    },
+                    { name: "observacoes", label: "Observações", value: i.observacoes, kind: "textarea" },
+                  ]}
+                />
               </td>
             </tr>
           ))}

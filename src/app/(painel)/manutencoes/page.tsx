@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table, TextArea } from "@/components/ui";
+import { RecordEditor } from "@/components/record-editor";
 import { atualizarStatusManutencao, criarManutencao } from "./actions";
 
 export default async function ManutencoesPage() {
@@ -8,7 +9,7 @@ export default async function ManutencoesPage() {
   const [{ data: manutencoes }, { data: imoveis }] = await Promise.all([
     supabase
       .from("manutencoes")
-      .select("id, tipo, descricao, status, custo, data_solicitacao, imoveis(endereco)")
+      .select("id, imovel_id, tipo, descricao, status, custo, responsavel, data_solicitacao, data_conclusao, observacoes, imoveis(endereco)")
       .order("data_solicitacao", { ascending: false }),
     supabase.from("imoveis").select("id, codigo, endereco").order("endereco"),
   ]);
@@ -73,6 +74,33 @@ export default async function ManutencoesPage() {
                     </button>
                   </form>
                 )}
+                <RecordEditor
+                  entity="manutencoes"
+                  id={m.id}
+                  fields={[
+                    {
+                      name: "imovel_id",
+                      label: "Imóvel",
+                      kind: "select",
+                      value: m.imovel_id,
+                      options: (imoveis ?? []).map((i) => ({ value: i.id, label: `${i.codigo ?? ""} ${i.endereco}`.trim() })),
+                    },
+                    { name: "tipo", label: "Tipo", value: m.tipo, required: true },
+                    { name: "descricao", label: "Descrição", value: m.descricao, kind: "textarea" },
+                    { name: "custo", label: "Custo (R$)", value: m.custo, type: "number", step: "0.01" },
+                    { name: "responsavel", label: "Responsável", value: m.responsavel },
+                    { name: "data_solicitacao", label: "Data da solicitação", value: m.data_solicitacao, type: "date", required: true },
+                    { name: "data_conclusao", label: "Data da conclusão", value: m.data_conclusao, type: "date" },
+                    {
+                      name: "status",
+                      label: "Status",
+                      kind: "select",
+                      value: m.status,
+                      options: [{ value: "aberta", label: "Aberta" }, { value: "em_andamento", label: "Em andamento" }, { value: "concluida", label: "Concluída" }, { value: "cancelada", label: "Cancelada" }],
+                    },
+                    { name: "observacoes", label: "Observações", value: m.observacoes, kind: "textarea" },
+                  ]}
+                />
               </td>
             </tr>
           ))}

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table, TextArea } from "@/components/ui";
+import { RecordEditor } from "@/components/record-editor";
 import { aplicarReajuste, criarContrato, encerrarContrato, gerarReajustesPendentes } from "./actions";
 
 export default async function ContratosPage() {
@@ -10,7 +11,7 @@ export default async function ContratosPage() {
       supabase
         .from("contratos")
         .select(
-          "id, data_inicio, data_fim, valor_aluguel_atual, indice_reajuste, status, imoveis(id, codigo, endereco), inquilinos(nome)"
+          "id, imovel_id, inquilino_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco), inquilinos(nome)"
         )
         .order("created_at", { ascending: false }),
       supabase.from("imoveis").select("id, codigo, endereco").eq("status", "disponivel"),
@@ -78,7 +79,7 @@ export default async function ContratosPage() {
       </div>
       <p className="mt-1 mb-4 text-sm" style={{ color: "var(--color-ink-soft)" }}>
         Calcula, para cada contrato ativo, se já passou 1 ano desde o último reajuste e aplica o índice
-        pactuado em contrato usando os valores cadastrados em "Índices econômicos".
+        pactuado em contrato usando os valores cadastrados em &quot;Índices econômicos&quot;.
       </p>
 
       {(reajustesPendentes ?? []).length === 0 ? (
@@ -136,6 +137,26 @@ export default async function ContratosPage() {
                       <Button variant="ghost">Encerrar</Button>
                     </form>
                   )}
+                  <RecordEditor
+                    entity="contratos"
+                    id={c.id}
+                    fields={[
+                      { name: "data_inicio", label: "Data de início", value: c.data_inicio, type: "date", required: true },
+                      { name: "data_fim", label: "Data de fim", value: c.data_fim, type: "date" },
+                      { name: "dia_vencimento", label: "Dia de vencimento", value: c.dia_vencimento, type: "number", required: true },
+                      { name: "valor_aluguel_atual", label: "Aluguel atual (R$)", value: c.valor_aluguel_atual, type: "number", step: "0.01", required: true },
+                      {
+                        name: "indice_reajuste",
+                        label: "Índice de reajuste",
+                        kind: "select",
+                        value: c.indice_reajuste,
+                        options: [{ value: "igpm", label: "IGP-M" }, { value: "ipca", label: "IPCA" }, { value: "outro", label: "Outro" }],
+                      },
+                      { name: "periodicidade_reajuste_meses", label: "Periodicidade (meses)", value: c.periodicidade_reajuste_meses, type: "number" },
+                      { name: "deposito_caucao", label: "Caução/depósito (R$)", value: c.deposito_caucao, type: "number", step: "0.01" },
+                      { name: "clausulas_especiais", label: "Cláusulas especiais", value: c.clausulas_especiais, kind: "textarea" },
+                    ]}
+                  />
                 </td>
               </tr>
             );

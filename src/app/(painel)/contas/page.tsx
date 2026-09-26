@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table } from "@/components/ui";
+import { RecordEditor } from "@/components/record-editor";
 import { criarConta, marcarContaPaga } from "./actions";
 
 export default async function ContasPage() {
@@ -8,7 +9,7 @@ export default async function ContasPage() {
   const [{ data: contas }, { data: imoveis }] = await Promise.all([
     supabase
       .from("contas_consumo")
-      .select("id, tipo, competencia, valor, vencimento, status, responsavel_pagamento, imoveis(endereco)")
+      .select("id, imovel_id, tipo, competencia, valor, vencimento, status, responsavel_pagamento, imoveis(endereco)")
       .order("vencimento", { ascending: false }),
     supabase.from("imoveis").select("id, codigo, endereco").order("endereco"),
   ]);
@@ -77,6 +78,43 @@ export default async function ContasPage() {
                     <Button variant="ghost">Marcar paga</Button>
                   </form>
                 )}
+                <RecordEditor
+                  entity="contas_consumo"
+                  id={c.id}
+                  fields={[
+                    {
+                      name: "imovel_id",
+                      label: "Imóvel",
+                      kind: "select",
+                      value: c.imovel_id,
+                      options: (imoveis ?? []).map((i) => ({ value: i.id, label: `${i.codigo ?? ""} ${i.endereco}`.trim() })),
+                    },
+                    {
+                      name: "tipo",
+                      label: "Tipo",
+                      kind: "select",
+                      value: c.tipo,
+                      options: [{ value: "agua", label: "Água" }, { value: "energia", label: "Energia" }, { value: "outra", label: "Outra" }],
+                    },
+                    { name: "competencia", label: "Competência", value: c.competencia.slice(0, 7), type: "month", required: true },
+                    { name: "valor", label: "Valor (R$)", value: c.valor, type: "number", step: "0.01", required: true },
+                    { name: "vencimento", label: "Vencimento", value: c.vencimento, type: "date", required: true },
+                    {
+                      name: "responsavel_pagamento",
+                      label: "Responsável",
+                      kind: "select",
+                      value: c.responsavel_pagamento,
+                      options: [{ value: "inquilino", label: "Inquilino" }, { value: "proprietario", label: "Proprietário" }],
+                    },
+                    {
+                      name: "status",
+                      label: "Status",
+                      kind: "select",
+                      value: c.status,
+                      options: [{ value: "pendente", label: "Pendente" }, { value: "pago", label: "Pago" }, { value: "atrasado", label: "Atrasado" }, { value: "isento", label: "Isento" }],
+                    },
+                  ]}
+                />
               </td>
             </tr>
           ))}

@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, PageHeader, Table, TextArea } from "@/components/ui";
+import { RecordEditor } from "@/components/record-editor";
 import { criarProprietario } from "./actions";
 
 export default async function ProprietariosPage() {
   const supabase = await createClient();
   const { data: proprietarios } = await supabase
     .from("proprietarios")
-    .select("id, nome, cpf_cnpj, telefone, email")
+    .select("id, nome, cpf_cnpj, telefone, email, observacoes")
     .order("nome");
 
   return (
@@ -27,13 +28,26 @@ export default async function ProprietariosPage() {
       </Card>
 
       <div className="mt-8">
-        <Table head={["Nome", "CPF/CNPJ", "Telefone", "E-mail"]}>
+        <Table head={["Nome", "CPF/CNPJ", "Telefone", "E-mail", ""]}>
           {(proprietarios ?? []).map((p) => (
             <tr key={p.id} style={{ borderTop: "1px solid var(--color-line)" }}>
               <td className="px-4 py-2.5">{p.nome}</td>
               <td className="px-4 py-2.5">{p.cpf_cnpj ?? "—"}</td>
               <td className="px-4 py-2.5">{p.telefone ?? "—"}</td>
               <td className="px-4 py-2.5">{p.email ?? "—"}</td>
+              <td className="px-4 py-2.5">
+                <RecordEditor
+                  entity="proprietarios"
+                  id={p.id}
+                  fields={[
+                    { name: "nome", label: "Nome", value: p.nome, required: true },
+                    { name: "cpf_cnpj", label: "CPF/CNPJ", value: p.cpf_cnpj },
+                    { name: "telefone", label: "Telefone", value: p.telefone },
+                    { name: "email", label: "E-mail", value: p.email, type: "email" },
+                    { name: "observacoes", label: "Observações", value: p.observacoes, kind: "textarea" },
+                  ]}
+                />
+              </td>
             </tr>
           ))}
         </Table>

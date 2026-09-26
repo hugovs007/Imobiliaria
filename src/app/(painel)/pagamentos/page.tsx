@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table } from "@/components/ui";
+import { RecordEditor } from "@/components/record-editor";
 import { lancarPagamento, registrarPagamento } from "./actions";
 
 export default async function PagamentosPage() {
@@ -9,7 +10,7 @@ export default async function PagamentosPage() {
     supabase
       .from("pagamentos")
       .select(
-        "id, competencia, valor_devido, valor_pago, data_vencimento, data_pagamento, status, contratos(imoveis(endereco), inquilinos(nome))"
+        "id, competencia, valor_devido, valor_pago, data_vencimento, data_pagamento, forma_pagamento, status, contratos(imoveis(endereco), inquilinos(nome))"
       )
       .order("competencia", { ascending: false }),
     supabase
@@ -91,6 +92,25 @@ export default async function PagamentosPage() {
                     <Button variant="ghost">Confirmar</Button>
                   </form>
                 )}
+                <RecordEditor
+                  entity="pagamentos"
+                  id={p.id}
+                  fields={[
+                    { name: "competencia", label: "Competência", value: p.competencia.slice(0, 7), type: "month", required: true },
+                    { name: "valor_devido", label: "Valor devido (R$)", value: p.valor_devido, type: "number", step: "0.01", required: true },
+                    { name: "valor_pago", label: "Valor pago (R$)", value: p.valor_pago, type: "number", step: "0.01" },
+                    { name: "data_vencimento", label: "Vencimento", value: p.data_vencimento, type: "date", required: true },
+                    { name: "data_pagamento", label: "Data do pagamento", value: p.data_pagamento, type: "date" },
+                    { name: "forma_pagamento", label: "Forma de pagamento", value: p.forma_pagamento },
+                    {
+                      name: "status",
+                      label: "Status",
+                      kind: "select",
+                      value: p.status,
+                      options: [{ value: "pendente", label: "Pendente" }, { value: "pago", label: "Pago" }, { value: "atrasado", label: "Atrasado" }, { value: "isento", label: "Isento" }],
+                    },
+                  ]}
+                />
               </td>
             </tr>
           ))}

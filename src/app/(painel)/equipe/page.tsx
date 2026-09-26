@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Table } from "@/components/ui";
+import { RecordEditor } from "@/components/record-editor";
 import { alternarAtivo, atualizarPapel } from "./actions";
 
 export default async function EquipePage() {
@@ -16,7 +17,16 @@ export default async function EquipePage() {
       <Table head={["Nome", "E-mail", "Papel", "Ativo", ""]}>
         {(membros ?? []).map((m) => (
           <tr key={m.id} style={{ borderTop: "1px solid var(--color-line)" }}>
-            <td className="px-4 py-2.5">{m.nome}</td>
+            <td className="px-4 py-2.5">
+              {m.nome}
+              <div className="mt-1">
+                <RecordEditor
+                  entity="profiles"
+                  id={m.id}
+                  fields={[{ name: "nome", label: "Nome", value: m.nome, required: true }]}
+                />
+              </div>
+            </td>
             <td className="px-4 py-2.5">{m.email}</td>
             <td className="px-4 py-2.5">
               <form action={atualizarPapel} className="flex items-center gap-2">

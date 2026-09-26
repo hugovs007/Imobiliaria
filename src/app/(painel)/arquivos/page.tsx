@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
-import { Button, Card, Field, PageHeader, Select, Table } from "@/components/ui";
+import { Card, PageHeader, Table } from "@/components/ui";
 import { RecordEditor } from "@/components/record-editor";
-import { enviarArquivo } from "./actions";
+import { UploadForm } from "./upload-form";
 
 export default async function ArquivosPage() {
   const supabase = await createClient();
@@ -15,34 +15,11 @@ export default async function ArquivosPage() {
     <div>
       <PageHeader
         title="Arquivos"
-        subtitle="Fotos, contratos digitalizados, recibos e comprovantes de contas. Arquivos grandes vão automaticamente para o Google Drive quando o armazenamento do Supabase não comporta."
+        subtitle="Fotos, contratos digitalizados, recibos e comprovantes. O limite é de 40 MB por arquivo."
       />
 
       <Card>
-        <form action={enviarArquivo} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Select
-            label="Vinculado a"
-            name="entidade_tipo"
-            options={[
-              { value: "contrato", label: "Contrato" },
-              { value: "imovel", label: "Imóvel" },
-              { value: "manutencao", label: "Manutenção" },
-              { value: "pagamento", label: "Pagamento" },
-              { value: "conta", label: "Conta de água/energia" },
-              { value: "inquilino", label: "Inquilino" },
-              { value: "proprietario", label: "Proprietário" },
-            ]}
-          />
-          <Field label="ID do registro vinculado" name="entidade_id" required placeholder="cole o ID do contrato/imóvel/etc." />
-          <Field label="Tipo de arquivo" name="tipo_arquivo" placeholder="foto, contrato, recibo, comprovante..." />
-          <label className="flex flex-col gap-1 text-sm">
-            <span style={{ color: "var(--color-ink-soft)" }}>Arquivo</span>
-            <input name="arquivo" type="file" required className="text-sm" />
-          </label>
-          <div className="sm:col-span-2">
-            <Button>Enviar arquivo</Button>
-          </div>
-        </form>
+        <UploadForm />
       </Card>
 
       <div className="mt-8">

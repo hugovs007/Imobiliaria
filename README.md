@@ -7,7 +7,7 @@ Sistema de gestão de carteiras de imóveis alugados com suporte a 100+ contrato
 - **Frontend/Backend**: Next.js 16 (App Router)
 - **Banco de dados**: Supabase (Postgres)
 - **Autenticação**: Supabase Auth (e-mail/senha)
-- **Armazenamento de arquivos**: Supabase Storage (principal) + Google Drive (fallback para arquivos grandes)
+- **Armazenamento de arquivos**: Supabase Storage, com limite de 40 MB por arquivo
 - **Deploy**: Vercel
 
 ## Recursos principais
@@ -71,12 +71,6 @@ git push origin main
 ```
 
 Vá a [vercel.com/new](https://vercel.com/new), importe o repositório e configure as variáveis de ambiente do Supabase.
-
----
-
-## Google Drive (opcional)
-
-Se os arquivos forem grandes, configure uma Conta de Serviço no Google Cloud Console e compartilhe uma pasta do Drive. Ver `README.md` completo para instruções detalhadas.
 
 ---
 

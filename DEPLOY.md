@@ -58,19 +58,6 @@ git push -u origin main
 - [ ] Fazer login com o primeiro usuário criado
 - [ ] Testar uma ação (ex: criar imóvel)
 
-## ☐ (Opcional) Configurar Google Drive
-
-Se quiser fallback para arquivos grandes:
-
-- [ ] Criar Conta de Serviço no Google Cloud Console
-- [ ] Habilitar Drive API
-- [ ] Criar chave JSON
-- [ ] Compartilhar pasta do Google Drive com o e-mail da conta de serviço
-- [ ] Adicionar variáveis ao Vercel:
-  - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
-  - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
-  - `GOOGLE_DRIVE_ROOT_FOLDER_ID`
-
 ## ☐ Convide membros da equipe
 
 - [ ] No Supabase → Authentication → Users, clique "Invite user"

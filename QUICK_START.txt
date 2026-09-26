@@ -95,8 +95,8 @@ R: Verifique se .env.local existe e tem NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_S
 P: Não consigo fazer login?
 R: O usuário precisa existir em Supabase Auth E ter o perfil com ativo=true em Database → Profiles
 
-P: Como uplo arquivos grandes?
-R: Configure Google Drive (ver README.md). Arquivos > 45MB vão automáticamente para lá.
+P: Qual é o limite para enviar arquivos?
+R: Até 40 MB por arquivo. O envio é feito ao Supabase Storage.
 
 P: Reajuste não é calculado?
 R: Cadastre os índices mensais em "Índices" antes. O sistema lê dali.

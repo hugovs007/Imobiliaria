@@ -1,7 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table, TextArea } from "@/components/ui";
 import { RecordEditor } from "@/components/record-editor";
+import { RenewalForm } from "./renewal-form";
 import { aplicarReajuste, criarContrato, encerrarContrato, gerarReajustesPendentes } from "./actions";
+
+function dataSeguinte(data: string | null) {
+  if (!data) return new Date().toISOString().slice(0, 10);
+  const proxima = new Date(`${data.slice(0, 10)}T00:00:00Z`);
+  proxima.setUTCDate(proxima.getUTCDate() + 1);
+  return proxima.toISOString().slice(0, 10);
+}
 
 export default async function ContratosPage() {
   const supabase = await createClient();
@@ -131,11 +139,19 @@ export default async function ContratosPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   {c.status === "ativo" && (
-                    <form action={encerrarContrato}>
-                      <input type="hidden" name="id" value={c.id} />
-                      <input type="hidden" name="imovel_id" value={imovel?.id} />
-                      <Button variant="ghost">Encerrar</Button>
-                    </form>
+                    <div className="flex flex-col items-start gap-2">
+                      <form action={encerrarContrato}>
+                        <input type="hidden" name="id" value={c.id} />
+                        <input type="hidden" name="imovel_id" value={imovel?.id} />
+                        <Button variant="ghost">Encerrar</Button>
+                      </form>
+                      <RenewalForm
+                        contractId={c.id}
+                        startDate={dataSeguinte(c.data_fim)}
+                        currentRent={c.valor_aluguel_atual}
+                        index={c.indice_reajuste}
+                      />
+                    </div>
                   )}
                   <RecordEditor
                     entity="contratos"

@@ -1,0 +1,142 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                 GESTÃO DE ALUGUÉIS — Quick Start                  ║
+║          Sistema de contratos, pagamentos e reajustes             ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+📋 O que é este projeto?
+
+Um sistema web completo para gerenciar até 100+ imóveis alugados com:
+✓ Cadastro de imóveis, proprietários, inquilinos
+✓ Contratos com reajuste automático (IGPM/IPCA)
+✓ Pagamentos mensais e controle de atrasos
+✓ Manutenções e contas de água/energia
+✓ Upload de fotos e documentos
+✓ Gestão de equipe (permissões por papel)
+✓ Lei do Inquilinato (Lei 8.245/91)
+
+Tech: Next.js + Supabase + Vercel
+
+---
+
+🚀 Comece aqui:
+
+1. Instale dependências:
+   npm install
+
+2. Crie uma conta Supabase (gratuita) em supabase.com
+
+3. Copie o arquivo .env.example para .env.local:
+   cp .env.example .env.local
+
+4. Preencha as variáveis de ambiente:
+   NEXT_PUBLIC_SUPABASE_URL=https://seu-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+
+5. No console Supabase, execute a migration SQL:
+   - Vá a SQL Editor
+   - Copie tudo de: supabase/migrations/0001_init.sql
+   - Cole e execute
+
+6. Crie o bucket de arquivos:
+   - Vá a Storage → Buckets
+   - Clique "New Bucket"
+   - Nome: arquivos
+   - Marque "Public" para leitura
+
+7. Rode o projeto localmente:
+   npm run dev
+
+8. Abra http://localhost:3000/login
+
+9. Convide o seu primeiro usuário:
+   - Vá ao console Supabase
+   - Authentication → Users
+   - Clique "Invite user"
+   - Convide seu e-mail
+
+10. Mude o papel para admin:
+    - Vá a Database → Profiles
+        - Encontre seu usuário
+    - Mude 'papel' para 'admin' e 'ativo' para true
+
+11. Faça login!
+
+---
+
+📖 Documentação:
+
+- DEPLOY.md        → Checklist passo a passo para colocar em produção
+- README.md        → Documentação completa (setup, uso, conformidade legal)
+- .env.example     → Variáveis de ambiente (copie para .env.local)
+
+---
+
+🌐 Publicar na Vercel (depois de testar localmente):
+
+1. Faça push para GitHub:
+   git add .
+   git commit -m "Initial commit"
+   git push
+
+2. Vá a vercel.com/new
+3. Importe seu repositório
+4. Adicione as variáveis de ambiente (Supabase)
+5. Clique Deploy
+
+Seu app estará em: https://seu-projeto.vercel.app
+
+---
+
+❓ Dúvidas comuns:
+
+P: Erro "Cannot find Supabase"?
+R: Verifique se .env.local existe e tem NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+P: Não consigo fazer login?
+R: O usuário precisa existir em Supabase Auth E ter o perfil com ativo=true em Database → Profiles
+
+P: Como uplo arquivos grandes?
+R: Configure Google Drive (ver README.md). Arquivos > 45MB vão automáticamente para lá.
+
+P: Reajuste não é calculado?
+R: Cadastre os índices mensais em "Índices" antes. O sistema lê dali.
+
+---
+
+📬 Estrutura de pastas:
+
+src/
+ ├── app/
+ │   ├── (painel)/        ← Páginas autenticadas do sistema
+ │   ├── login/           ← Página de login
+ │   └── globals.css      ← Design tokens (paleta + tipografia)
+ ├── components/
+ │   └── ui.tsx           ← Componentes de UI reutilizáveis
+ ├── lib/
+ │   ├── supabase/        ← Clientes Supabase (browser + server)
+ │   └── google-drive.ts  ← Integração Google Drive (opcional)
+ └── middleware.ts        ← Proteção de rotas
+
+supabase/
+ └── migrations/
+     └── 0001_init.sql    ← Schema do banco de dados (execute isto!)
+
+---
+
+⚖️ Conformidade Legal:
+
+O sistema segue a Lei do Inquilinato (Lei 8.245/91):
+
+✓ Reajuste máximo 1x a cada 12 meses
+✓ Índice escolhido por contrato
+✓ Cálculo automático com variação de 12 meses
+✓ Painel de aprovação antes de aplicar
+
+Para questões jurídicas, consulte um advogado.
+
+---
+
+Desenvolvido com Next.js, Supabase e Vercel.
+Design de livro-razão (registro/ledger visual).
+
+Boa sorte! 🎉

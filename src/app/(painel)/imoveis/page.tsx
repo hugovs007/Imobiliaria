@@ -3,6 +3,19 @@ import { Card, Field, PageHeader, Select, StatusBadge, Table, TextArea, Money, B
 import { RecordEditor } from "@/components/record-editor";
 import { criarImovel } from "./actions";
 
+const TIPOS_IMOVEL = [
+  { value: "residencial", label: "Residencial" },
+  { value: "comercial", label: "Comercial" },
+  { value: "casa", label: "Casa" },
+  { value: "apartamento", label: "Apartamento" },
+  { value: "terreno", label: "Terreno" },
+  { value: "sala_comercial", label: "Sala comercial" },
+  { value: "galpao", label: "Galpão" },
+  { value: "rural", label: "Rural" },
+  { value: "kitnet", label: "Kitnet" },
+  { value: "outro", label: "Outro" },
+];
+
 export default async function ImoveisPage() {
   const supabase = await createClient();
   const [{ data: imoveis }, { data: proprietarios }] = await Promise.all([
@@ -35,10 +48,7 @@ export default async function ImoveisPage() {
             label="Tipo"
             name="tipo"
             defaultValue="residencial"
-            options={[
-              { value: "residencial", label: "Residencial" },
-              { value: "comercial", label: "Comercial" },
-            ]}
+            options={TIPOS_IMOVEL}
           />
           <Field label="Quartos" name="quartos" type="number" />
           <Field label="Área (m²)" name="area_m2" type="number" step="0.01" />
@@ -102,7 +112,7 @@ export default async function ImoveisPage() {
                       label: "Tipo",
                       kind: "select",
                       value: i.tipo,
-                      options: [{ value: "residencial", label: "Residencial" }, { value: "comercial", label: "Comercial" }],
+                      options: TIPOS_IMOVEL,
                     },
                     { name: "quartos", label: "Quartos", value: i.quartos, type: "number" },
                     { name: "area_m2", label: "Área (m²)", value: i.area_m2, type: "number", step: "0.01" },

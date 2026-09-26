@@ -83,7 +83,11 @@ export function RenewalForm({
               setIsSaving(true);
               setError(null);
               try {
-                await renovarContrato(formData);
+                const result = await renovarContrato(formData);
+                if (result.error) {
+                  setError(result.error);
+                  return;
+                }
                 closeDialog();
               } catch (cause) {
                 setError(cause instanceof Error ? cause.message : "Não foi possível renovar o contrato.");

@@ -24,7 +24,7 @@ const editableFields: Record<string, { path: string; fields: Record<string, Edit
   imoveis: {
     path: "/imoveis",
     fields: {
-      proprietario_id: "nullableText", codigo: "nullableText", endereco: "text", numero: "nullableText",
+      proprietario_id: "nullableText", codigo: "nullableText", endereco: "text", numero: "nullableText", complemento: "nullableText",
       bairro: "nullableText", cidade: "text", estado: "text", cep: "nullableText", tipo: "text",
       quartos: "number", area_m2: "number", valor_aluguel_base: "number", status: "text", observacoes: "nullableText",
     },

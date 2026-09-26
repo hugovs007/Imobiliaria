@@ -11,6 +11,7 @@ export async function criarImovel(formData: FormData) {
     codigo: String(formData.get("codigo") || "") || null,
     endereco: String(formData.get("endereco")),
     numero: String(formData.get("numero") || ""),
+    complemento: String(formData.get("complemento") || ""),
     bairro: String(formData.get("bairro") || ""),
     cidade: String(formData.get("cidade")),
     estado: String(formData.get("estado")),

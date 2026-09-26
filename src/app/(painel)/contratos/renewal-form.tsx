@@ -9,11 +9,13 @@ function moeda(valor: number) {
 
 export function RenewalForm({
   contractId,
+  contractCode,
   startDate,
   currentRent,
   index,
 }: {
   contractId: string;
+  contractCode: string;
   startDate: string;
   currentRent: number;
   index: string;
@@ -50,7 +52,7 @@ export function RenewalForm({
                 Renovar contrato
               </h2>
               <p className="mt-1 text-sm" style={{ color: "var(--color-ink-soft)" }}>
-                O contrato atual ficará intacto e um novo período de 12 meses será criado.
+                Contrato {contractCode}. O registro atual ficará intacto e um novo período de 12 meses será criado.
               </p>
             </div>
             <button

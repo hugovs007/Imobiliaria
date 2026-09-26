@@ -16,14 +16,14 @@ export default async function PagamentosPage() {
       .order("competencia", { ascending: false }),
     supabase
       .from("contratos")
-      .select("id, status, contrato_anterior_id, valor_aluguel_atual, imoveis(endereco), inquilinos(nome)"),
+      .select("id, codigo_contrato, status, contrato_anterior_id, valor_aluguel_atual, imoveis(endereco), inquilinos(nome)"),
   ]);
 
   const contratosComSucessor = new Set(
     (contratos ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
   );
   const contratosVigentes = (contratos ?? []).filter(
-    (contrato) => contrato.status === "ativo" && !contratosComSucessor.has(contrato.id)
+    (contrato) => ["ativo", "renovado"].includes(contrato.status) && !contratosComSucessor.has(contrato.id)
   );
 
   return (
@@ -38,7 +38,7 @@ export default async function PagamentosPage() {
             required
             options={contratosVigentes.map((c) => ({
               value: c.id,
-              label: `${(c.imoveis as unknown as { endereco: string })?.endereco} — ${(c.inquilinos as unknown as { nome: string })?.nome}`,
+              label: `${c.codigo_contrato} — ${(c.imoveis as unknown as { endereco: string })?.endereco} — ${(c.inquilinos as unknown as { nome: string })?.nome}`,
             }))}
           />
           <Field label="Competência (mês)" name="competencia" type="month" required />

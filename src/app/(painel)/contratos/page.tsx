@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table, TextArea } from "@/components/ui";
 import { RecordEditor } from "@/components/record-editor";
+import { CloseContractForm } from "./close-contract-form";
 import { RenewalForm } from "./renewal-form";
-import { aplicarReajuste, criarContrato, encerrarContrato, gerarReajustesPendentes } from "./actions";
+import { aplicarReajuste, criarContrato, gerarReajustesPendentes } from "./actions";
 
 function dataSeguinte(data: string | null) {
   if (!data) return new Date().toISOString().slice(0, 10);
@@ -19,7 +20,7 @@ export default async function ContratosPage() {
       supabase
         .from("contratos")
         .select(
-          "id, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco), inquilinos(nome)"
+          "id, codigo_contrato, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco), inquilinos(nome)"
         )
         .order("created_at", { ascending: false }),
       supabase.from("imoveis").select("id, codigo, endereco").eq("status", "disponivel"),
@@ -125,14 +126,15 @@ export default async function ContratosPage() {
       )}
 
       <div className="mt-10">
-        <Table head={["Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", ""]}>
+        <Table head={["ID", "Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", "Ações"]}>
           {(contratos ?? []).map((c) => {
             const imovel = c.imoveis as unknown as { id: string; codigo: string | null; endereco: string };
             const possuiRenovacao = contratosComSucessor.has(c.id);
-            const contratoVigente = c.status === "ativo" && !possuiRenovacao;
-            const statusExibido = c.status === "ativo" && possuiRenovacao ? "renovado" : c.status;
+            const contratoVigente = ["ativo", "renovado"].includes(c.status) && !possuiRenovacao;
+            const statusExibido = possuiRenovacao ? "encerrado" : c.status;
             return (
               <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
+                <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{c.codigo_contrato}</td>
                 <td className="px-4 py-2.5">{imovel?.endereco}</td>
                 <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome}</td>
                 <td className="px-4 py-2.5">{new Date(c.data_inicio).toLocaleDateString("pt-BR")}</td>
@@ -146,13 +148,10 @@ export default async function ContratosPage() {
                 <td className="px-4 py-2.5">
                   {contratoVigente && (
                     <div className="flex flex-col items-start gap-2">
-                      <form action={encerrarContrato}>
-                        <input type="hidden" name="id" value={c.id} />
-                        <input type="hidden" name="imovel_id" value={imovel?.id} />
-                        <Button variant="ghost">Encerrar</Button>
-                      </form>
+                      <CloseContractForm contractId={c.id} contractCode={c.codigo_contrato} />
                       <RenewalForm
                         contractId={c.id}
+                        contractCode={c.codigo_contrato}
                         startDate={dataSeguinte(c.data_fim)}
                         currentRent={c.valor_aluguel_atual}
                         index={c.indice_reajuste}

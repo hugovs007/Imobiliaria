@@ -28,7 +28,7 @@ export default async function DashboardPage() {
     (contratosAtivos.data ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
   );
   const totalContratosVigentes = (contratosAtivos.data ?? []).filter(
-    (contrato) => contrato.status === "ativo" && !contratosComSucessor.has(contrato.id)
+    (contrato) => ["ativo", "renovado"].includes(contrato.status) && !contratosComSucessor.has(contrato.id)
   ).length;
 
   const cards = [

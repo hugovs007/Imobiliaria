@@ -11,14 +11,14 @@ export async function criarContrato(formData: FormData) {
 
   const { data: contratosAtivos, error: contratosError } = await supabase
     .from("contratos")
-      .select("id, status, contrato_anterior_id")
-      .eq("imovel_id", imovel_id);
+    .select("id, status, contrato_anterior_id")
+    .eq("imovel_id", imovel_id);
   if (contratosError) throw new Error(contratosError.message);
 
   const contratosComSucessor = new Set(
     (contratosAtivos ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
   );
-    if ((contratosAtivos ?? []).some((contrato) => contrato.status === "ativo" && !contratosComSucessor.has(contrato.id))) {
+  if ((contratosAtivos ?? []).some((contrato) => ["ativo", "renovado"].includes(contrato.status) && !contratosComSucessor.has(contrato.id))) {
     throw new Error("Este imóvel já possui um contrato vigente.");
   }
 
@@ -42,7 +42,7 @@ export async function criarContrato(formData: FormData) {
 
   revalidatePath("/contratos");
   revalidatePath("/imoveis");
-    revalidatePath("/");
+  revalidatePath("/");
 }
 
 export async function gerarReajustesPendentes() {
@@ -89,16 +89,23 @@ export async function renovarContrato(formData: FormData): Promise<{ error: stri
   }
 }
 
-export async function encerrarContrato(formData: FormData) {
-  const supabase = await createClient();
-  const id = String(formData.get("id"));
-  const imovel_id = String(formData.get("imovel_id"));
+export async function encerrarContrato(formData: FormData): Promise<{ error: string | null }> {
+  try {
+    const supabase = await createClient();
+    const contratoId = String(formData.get("id") || "");
+    const { error } = await supabase.rpc("encerrar_contrato", { p_contrato_id: contratoId });
+    if (error) {
+      console.error("Falha ao encerrar contrato:", error);
+      return { error: error.message };
+    }
 
-  const { error } = await supabase.from("contratos").update({ status: "encerrado" }).eq("id", id);
-  if (error) throw new Error(error.message);
-
-  await supabase.from("imoveis").update({ status: "disponivel" }).eq("id", imovel_id);
-  revalidatePath("/contratos");
-  revalidatePath("/imoveis");
+    revalidatePath("/contratos");
+    revalidatePath("/imoveis");
     revalidatePath("/");
+    return { error: null };
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "Não foi possível encerrar o contrato.";
+    console.error("Falha ao encerrar contrato:", cause);
+    return { error: message };
+  }
 }

@@ -12,8 +12,16 @@ type PagamentoRecibo = {
   forma_pagamento: string | null;
   status: string;
   contratos: {
+    data_inicio: string;
+    data_fim: string | null;
     imoveis: {
       endereco: string;
+      numero: string | null;
+      complemento: string | null;
+      bairro: string | null;
+      cidade: string;
+      estado: string;
+      cep: string | null;
       proprietarios: { nome: string } | null;
     } | null;
     inquilinos: { nome: string; cpf_cnpj: string | null } | null;
@@ -34,7 +42,7 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
   const { data } = await supabase
     .from("pagamentos")
     .select(
-      "id, competencia, valor_devido, valor_pago, data_pagamento, forma_pagamento, status, contratos(imoveis(endereco, proprietarios(nome)), inquilinos(nome, cpf_cnpj))"
+      "id, competencia, valor_devido, valor_pago, data_pagamento, forma_pagamento, status, contratos(data_inicio, data_fim, imoveis(endereco, numero, complemento, bairro, cidade, estado, cep, proprietarios(nome)), inquilinos(nome, cpf_cnpj))"
     )
     .eq("id", id)
     .maybeSingle();
@@ -46,10 +54,38 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
   const imovel = contrato?.imoveis;
   const inquilino = contrato?.inquilinos;
   const valorPago = pagamento.valor_pago ?? pagamento.valor_devido;
+  const enderecoCompleto = [
+    imovel?.endereco,
+    imovel?.numero,
+    imovel?.complemento,
+    imovel?.bairro,
+    imovel ? `${imovel.cidade}/${imovel.estado}` : null,
+    imovel?.cep ? `CEP ${imovel.cep}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
   const competencia = new Date(`${pagamento.competencia.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR", {
     month: "long",
     year: "numeric",
   });
+  const dataCompetencia = new Date(`${pagamento.competencia.slice(0, 10)}T00:00:00`);
+  const dataInicio = contrato ? new Date(`${contrato.data_inicio.slice(0, 10)}T00:00:00`) : null;
+  const dataFim = contrato?.data_fim ? new Date(`${contrato.data_fim.slice(0, 10)}T00:00:00`) : null;
+  const diferencaMeses =
+    dataInicio && dataFim
+      ? (dataFim.getFullYear() - dataInicio.getFullYear()) * 12 + dataFim.getMonth() - dataInicio.getMonth()
+      : null;
+  const mesesContrato =
+    diferencaMeses !== null && dataInicio && dataFim
+      ? Math.max(1, diferencaMeses + (dataFim.getDate() >= dataInicio.getDate() ? 1 : 0))
+      : null;
+  const parcelaAtual = dataInicio
+    ? (dataCompetencia.getFullYear() - dataInicio.getFullYear()) * 12 + dataCompetencia.getMonth() - dataInicio.getMonth() + 1
+    : null;
+  const identificacaoParcela =
+    mesesContrato && mesesContrato > 0 && parcelaAtual && parcelaAtual > 0 && parcelaAtual <= mesesContrato
+      ? `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`
+      : null;
 
   return (
     <main className="min-h-screen bg-white px-4 py-8 text-neutral-900 sm:py-12 print:min-h-0 print:px-0 print:py-0">
@@ -76,7 +112,7 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
               Recebemos de <strong>{inquilino?.nome ?? "Inquilino"}</strong>
               {inquilino?.cpf_cnpj ? `, CPF/CNPJ ${inquilino.cpf_cnpj},` : ""} a importância de{" "}
               <strong>{moeda(valorPago)}</strong>, referente ao aluguel do imóvel localizado em{" "}
-              <strong>{imovel?.endereco ?? "endereço não informado"}</strong>, competência de{" "}
+              <strong>{enderecoCompleto || "endereço não informado"}</strong>, competência de{" "}
               <strong>{competencia}</strong>.
             </p>
 
@@ -105,6 +141,12 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
                 <dt className="text-xs uppercase text-neutral-500">Competência</dt>
                 <dd className="mt-1 font-medium">{competencia}</dd>
               </div>
+              {identificacaoParcela && (
+                <div>
+                  <dt className="text-xs uppercase text-neutral-500">Parcela do contrato</dt>
+                  <dd className="mt-1 text-lg font-semibold">{identificacaoParcela}</dd>
+                </div>
+              )}
             </dl>
 
             <p className="text-sm leading-6 text-neutral-700">
@@ -112,11 +154,7 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
             </p>
           </section>
 
-          <footer className="mt-16 grid grid-cols-1 gap-10 text-center sm:grid-cols-2">
-            <div className="border-t border-neutral-400 pt-2">
-              <p className="text-sm">{inquilino?.nome ?? "Inquilino"}</p>
-              <p className="mt-1 text-xs text-neutral-500">Pagador</p>
-            </div>
+          <footer className="mt-16 max-w-sm text-center">
             <div className="border-t border-neutral-400 pt-2">
               <p className="text-sm">{imovel?.proprietarios?.nome ?? "Proprietário do imóvel"}</p>
               <p className="mt-1 text-xs text-neutral-500">Recebedor</p>

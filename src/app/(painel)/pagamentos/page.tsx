@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table } from "@/components/ui";
 import { RecordEditor } from "@/components/record-editor";
@@ -44,7 +45,7 @@ export default async function PagamentosPage() {
       </Card>
 
       <div className="mt-8">
-        <Table head={["Competência", "Imóvel", "Inquilino", "Valor devido", "Vencimento", "Status", "Baixa"]}>
+        <Table head={["Competência", "Imóvel", "Inquilino", "Valor devido", "Vencimento", "Status", "Baixa / recibo"]}>
           {(pagamentos ?? []).map((p) => (
             <tr key={p.id} style={{ borderTop: "1px solid var(--color-line)" }}>
               <td className="px-4 py-2.5">
@@ -91,6 +92,15 @@ export default async function PagamentosPage() {
                     />
                     <Button variant="ghost">Confirmar</Button>
                   </form>
+                )}
+                {p.status === "pago" && (
+                  <Link
+                    href={`/recibos/${p.id}`}
+                    className="inline-block text-xs font-medium underline"
+                    style={{ color: "var(--color-teal)" }}
+                  >
+                    Imprimir recibo
+                  </Link>
                 )}
                 <RecordEditor
                   entity="pagamentos"

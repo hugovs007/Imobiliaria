@@ -21,7 +21,7 @@ export default async function ImoveisPage() {
   const [{ data: imoveis }, { data: proprietarios }] = await Promise.all([
     supabase
       .from("imoveis")
-      .select("id, codigo, proprietario_id, endereco, numero, bairro, cidade, estado, cep, tipo, status, quartos, area_m2, valor_aluguel_base, observacoes, proprietarios(nome)")
+      .select("id, codigo, proprietario_id, endereco, numero, complemento, bairro, cidade, estado, cep, tipo, status, quartos, area_m2, valor_aluguel_base, observacoes, proprietarios(nome)")
       .order("created_at", { ascending: false }),
     supabase.from("proprietarios").select("id, nome").order("nome"),
   ]);
@@ -40,6 +40,7 @@ export default async function ImoveisPage() {
           />
           <Field label="Endereço" name="endereco" required />
           <Field label="Número" name="numero" />
+          <Field label="Complemento" name="complemento" placeholder="Apto, bloco, casa dos fundos..." />
           <Field label="Bairro" name="bairro" />
           <Field label="Cidade" name="cidade" required />
           <Field label="Estado (UF)" name="estado" required />
@@ -72,11 +73,12 @@ export default async function ImoveisPage() {
       </Card>
 
       <div className="mt-8">
-        <Table head={["Código", "Endereço", "Cidade/UF", "Tipo", "Proprietário", "Aluguel base", "Status", ""]}>
+        <Table head={["Código", "Endereço", "Complemento", "Cidade/UF", "Tipo", "Proprietário", "Aluguel base", "Status", ""]}>
           {(imoveis ?? []).map((i) => (
             <tr key={i.id} style={{ borderTop: "1px solid var(--color-line)" }}>
               <td className="px-4 py-2.5">{i.codigo ?? "—"}</td>
               <td className="px-4 py-2.5">{i.endereco}</td>
+              <td className="px-4 py-2.5">{i.complemento ?? "—"}</td>
               <td className="px-4 py-2.5">
                 {i.cidade}/{i.estado}
               </td>
@@ -103,6 +105,7 @@ export default async function ImoveisPage() {
                     },
                     { name: "endereco", label: "Endereço", value: i.endereco, required: true },
                     { name: "numero", label: "Número", value: i.numero },
+                    { name: "complemento", label: "Complemento", value: i.complemento },
                     { name: "bairro", label: "Bairro", value: i.bairro },
                     { name: "cidade", label: "Cidade", value: i.cidade, required: true },
                     { name: "estado", label: "Estado (UF)", value: i.estado, required: true },

@@ -27,11 +27,7 @@ export function CreatePropertyForm({
         setError(null);
         setSuccess(false);
         try {
-          const result = await criarImovel(formData);
-          if (result.error) {
-            setError(result.error);
-            return;
-          }
+          await criarImovel(formData);
           formRef.current?.reset();
           setSuccess(true);
         } catch (cause) {

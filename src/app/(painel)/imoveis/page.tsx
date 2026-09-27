@@ -6,6 +6,14 @@ import { criarImovel } from "./actions";
 const TIPOS_IMOVEL = [
   { value: "residencial", label: "Residencial" },
   { value: "comercial", label: "Comercial" },
+  { value: "casa", label: "Casa" },
+  { value: "apartamento", label: "Apartamento" },
+  { value: "terreno", label: "Terreno" },
+  { value: "sala_comercial", label: "Sala comercial" },
+  { value: "galpao", label: "Galpão" },
+  { value: "rural", label: "Rural" },
+  { value: "kitnet", label: "Kitnet" },
+  { value: "outro", label: "Outro" },
 ];
 
 export default async function ImoveisPage() {

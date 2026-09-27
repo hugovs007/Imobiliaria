@@ -11,7 +11,7 @@ export default async function PagamentosPage() {
     supabase
       .from("pagamentos")
       .select(
-        "id, competencia, valor_devido, valor_pago, data_vencimento, data_pagamento, forma_pagamento, status, contratos(imoveis(endereco), inquilinos(nome))"
+        "id, competencia, valor_devido, valor_pago, data_vencimento, data_pagamento, forma_pagamento, status, contratos(data_inicio, data_fim, imoveis(endereco), inquilinos(nome))"
       )
       .order("competencia", { ascending: false }),
     supabase

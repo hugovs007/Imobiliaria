@@ -126,7 +126,7 @@ export default async function PagamentosPage() {
               name="contrato_id"
               required
               options={contratosVigentes.map((c) => ({
-                value: c.id,
+                value: String(c.id),
                 label: `${c.codigo_contrato} — ${(c.imoveis as any)?.endereco}, ${(c.imoveis as any)?.numero} — ${(c.inquilinos as any)?.nome}`,
               }))}
             />
@@ -241,7 +241,7 @@ export default async function PagamentosPage() {
                     {/* Baixa de pagamento */}
                     {!isPago && !p.status.includes("isento") && (
                       <form action={registrarPagamento} className="flex flex-wrap items-center gap-1">
-                        <input type="hidden" name="id" value={p.id} />
+                        <input type="hidden" name="id" value={String(p.id)} />
                         <input
                           name="valor_pago"
                           type="number"
@@ -265,15 +265,15 @@ export default async function PagamentosPage() {
                           className="w-28 rounded-sm border px-2 py-1 text-xs"
                           style={{ borderColor: "var(--color-line)" }}
                         />
-                        <Button variant="ghost" style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem" }}>Confirmar</Button>
+                        <Button variant="ghost">Confirmar</Button>
                       </form>
                     )}
 
                     {/* Marcar isento */}
                     {isPendente && (
                       <form action={marcarIsento} className="inline">
-                        <input type="hidden" name="id" value={p.id} />
-                        <Button variant="ghost" style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", color: "var(--color-warn)" }}>
+                        <input type="hidden" name="id" value={String(p.id)} />
+                        <Button variant="ghost">
                           Isentar
                         </Button>
                       </form>
@@ -293,7 +293,7 @@ export default async function PagamentosPage() {
                     {/* Editor de registro */}
                     <RecordEditor
                       entity="pagamentos"
-                      id={p.id}
+                      id={String(p.id)}
                       fields={[
                         { name: "competencia", label: "Competência", value: p.competencia.slice(0, 7), type: "month", required: true },
                         { name: "valor_devido", label: "Valor devido (R$)", value: p.valor_devido, type: "number", step: "0.01", required: true },
@@ -320,7 +320,7 @@ export default async function PagamentosPage() {
                     {/* Excluir */}
                     {isPendente && (
                       <form action={excluirPagamento} className="inline" onSubmit={(e) => { if (!confirm("Excluir este pagamento?")) e.preventDefault(); }}>
-                        <input type="hidden" name="id" value={p.id} />
+                        <input type="hidden" name="id" value={String(p.id)} />
                         <Button variant="ghost" style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", color: "var(--color-alert)" }}>
                           Excluir
                         </Button>

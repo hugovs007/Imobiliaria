@@ -112,7 +112,7 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
               </div>
               {identificacaoParcela && (
                 <p className="text-right text-sm text-neutral-700">
-                  Parcela do contrato <strong className="ml-1 text-lg">{identificacaoParcela}</strong>
+                  {identificacaoParcela}
                 </p>
               )}
             </div>

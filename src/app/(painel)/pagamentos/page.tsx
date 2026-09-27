@@ -51,7 +51,7 @@ export default async function PagamentosPage() {
       </Card>
 
       <div className="mt-8">
-        <Table head={["Competência", "Imóvel", "Inquilino", "Valor devido", "Valor pago", "Falta pagar", "Vencimento", "Status", "Baixa / recibo"]}>
+        <Table head={["Competência", "Imóvel", "Inquilino", "Valor devido", "Valor pago", "Falta pagar", "Parcela", "Vencimento", "Status", "Baixa / recibo"]}>
           {(pagamentos ?? []).map((p) => (
             <tr key={p.id} style={{ borderTop: "1px solid var(--color-line)" }}>
               <td className="px-4 py-2.5">
@@ -79,6 +79,27 @@ export default async function PagamentosPage() {
                   ) : (
                     "—"
                   );
+                })()}
+              </td>
+              <td className="px-4 py-2.5">
+                {(() => {
+                  const contrato = p.contratos;
+                  const dataInicio = contrato?.data_inicio ? new Date(contrato.data_inicio) : null;
+                  const dataFim = contrato?.data_fim ? new Date(contrato.data_fim) : null;
+                  const dataCompetencia = new Date(p.competencia);
+                  const diferencaMeses = dataInicio && dataFim
+                    ? (dataFim.getFullYear() - dataInicio.getFullYear()) * 12 + dataFim.getMonth() - dataInicio.getMonth()
+                    : null;
+                  const mesesContrato = diferencaMeses !== null && dataInicio && dataFim
+                    ? Math.max(1, diferencaMeses + (dataFim.getDate() >= dataInicio.getDate() ? 1 : 0))
+                    : null;
+                  const parcelaAtual = dataInicio
+                    ? (dataCompetencia.getFullYear() - dataInicio.getFullYear()) * 12 + dataCompetencia.getMonth() - dataInicio.getMonth() + 1
+                    : null;
+                  const identificacaoParcela = mesesContrato && mesesContrato > 0 && parcelaAtual && parcelaAtual > 0 && parcelaAtual <= mesesContrato
+                    ? `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`
+                    : null;
+                  return identificacaoParcela ?? "—";
                 })()}
               </td>
               <td className="px-4 py-2.5">{new Date(p.data_vencimento).toLocaleDateString("pt-BR")}</td>

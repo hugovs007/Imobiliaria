@@ -1,5 +1,4 @@
 {
-  // Use Next.js build directly to avoid npm scripts.
   "buildCommand": "next build",
   "outputDirectory": ".next",
   "framework": "nextjs"

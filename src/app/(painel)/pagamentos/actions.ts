@@ -18,15 +18,23 @@ export async function lancarPagamento(formData: FormData) {
   if (existing) {
     throw new Error("Pagamento já registrado para este contrato e competência.");
   }
-  const { error } = await supabase.from("pagamentos").insert({
-    contrato_id: contratoId,
-    competencia,
-    valor_devido: Number(formData.get("valor_devido")),
-    data_vencimento: String(formData.get("data_vencimento")),
-    status: "pendente",
-  });
-
-  if (error) throw new Error(error.message);
+  try {
+    const { error } = await supabase.from("pagamentos").insert({
+      contrato_id: contratoId,
+      competencia,
+      valor_devido: Number(formData.get("valor_devido")),
+      data_vencimento: String(formData.get("data_vencimento")),
+      status: "pendente",
+    });
+    if (error) {
+      if (error.message.includes("duplicate key")) {
+        throw new Error("Já existe um pagamento registrado para este contrato e competência.");
+      }
+      throw new Error(error.message);
+    }
+  } catch (err: any) {
+    throw new Error(err.message || "Erro ao lançar pagamento.");
+  }
   revalidatePath("/pagamentos");
 }
 

@@ -51,7 +51,7 @@ export default async function PagamentosPage() {
       </Card>
 
       <div className="mt-8">
-        <Table head={["Competência", "Imóvel", "Inquilino", "Valor devido", "Vencimento", "Status", "Baixa / recibo"]}>
+        <Table head={["Competência", "Imóvel", "Inquilino", "Valor devido", "Valor pago", "Falta pagar", "Vencimento", "Status", "Baixa / recibo"]}>
           {(pagamentos ?? []).map((p) => (
             <tr key={p.id} style={{ borderTop: "1px solid var(--color-line)" }}>
               <td className="px-4 py-2.5">
@@ -65,6 +65,21 @@ export default async function PagamentosPage() {
               </td>
               <td className="px-4 py-2.5">
                 <Money value={p.valor_devido} />
+              </td>
+              <td className="px-4 py-2.5">
+                {p.valor_pago != null ? <Money value={p.valor_pago} /> : "—"}
+              </td>
+              <td className="px-4 py-2.5">
+                {(() => {
+                  const falta = Math.max(0, p.valor_devido - (p.valor_pago ?? 0));
+                  return falta > 0.009 ? (
+                    <span className="font-medium text-red-700">
+                      <Money value={falta} />
+                    </span>
+                  ) : (
+                    "—"
+                  );
+                })()}
               </td>
               <td className="px-4 py-2.5">{new Date(p.data_vencimento).toLocaleDateString("pt-BR")}</td>
               <td className="px-4 py-2.5">

@@ -54,6 +54,8 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
   const imovel = contrato?.imoveis;
   const inquilino = contrato?.inquilinos;
   const valorPago = pagamento.valor_pago ?? pagamento.valor_devido;
+  const saldoRestante = Math.max(0, pagamento.valor_devido - valorPago);
+  const pagamentoParcial = saldoRestante > 0.009;
   const enderecoCompleto = [
     imovel?.endereco,
     imovel?.numero,
@@ -143,9 +145,19 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
                 <dd className="mt-1 font-medium">{pagamento.forma_pagamento || "—"}</dd>
               </div>
               <div>
+                <dt className="text-xs uppercase text-neutral-500">Valor devido</dt>
+                <dd className="mt-1 font-medium">{moeda(pagamento.valor_devido)}</dd>
+              </div>
+              <div>
                 <dt className="text-xs uppercase text-neutral-500">Valor recebido</dt>
                 <dd className="mt-1 text-lg font-semibold">{moeda(valorPago)}</dd>
               </div>
+              {pagamentoParcial && (
+                <div>
+                  <dt className="text-xs uppercase text-neutral-500">Saldo restante</dt>
+                  <dd className="mt-1 text-lg font-semibold text-red-700">{moeda(saldoRestante)}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-xs uppercase text-neutral-500">Competência</dt>
                 <dd className="mt-1 font-medium">{competencia}</dd>
@@ -153,7 +165,9 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
             </dl>
 
             <p className="text-sm leading-6 text-neutral-700">
-              Para os devidos fins, declaramos que o valor acima foi recebido integralmente para a competência indicada.
+              {pagamentoParcial
+                ? `Para os devidos fins, declaramos que o valor acima foi recebido como pagamento parcial da competência indicada, restando o saldo de ${moeda(saldoRestante)} a quitar.`
+                : "Para os devidos fins, declaramos que o valor acima foi recebido integralmente para a competência indicada."}
             </p>
           </section>
 

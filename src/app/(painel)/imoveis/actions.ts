@@ -24,6 +24,7 @@ export async function criarImovel(formData: FormData) {
     observacoes: String(formData.get("observacoes") || ""),
   });
 
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
   revalidatePath("/imoveis");
+  return { success: true };
 }

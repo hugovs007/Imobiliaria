@@ -22,10 +22,21 @@ export async function registrarPagamento(formData: FormData) {
   const supabase = await createClient();
   const id = String(formData.get("id"));
 
+  // Fetch current pagamento to validate full payment
+  const { data: pagamentoData } = await supabase
+    .from("pagamentos")
+    .select("valor_devido, valor_pago")
+    .eq("id", id)
+    .single();
+  const valorDevido = pagamentoData?.valor_devido ?? 0;
+  const valorPago = Number(formData.get("valor_pago"));
+  if (valorPago < valorDevido) {
+    throw new Error("Pagamento parcial não permitido. Complete o valor devido antes de avançar para a próxima parcela.");
+  }
   const { error } = await supabase
     .from("pagamentos")
     .update({
-      valor_pago: Number(formData.get("valor_pago")),
+      valor_pago: valorPago,
       data_pagamento: String(formData.get("data_pagamento")),
       forma_pagamento: String(formData.get("forma_pagamento") || ""),
       status: "pago",

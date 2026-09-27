@@ -88,6 +88,7 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
     mesesContrato && mesesContrato > 0 && parcelaAtual && parcelaAtual > 0 && parcelaAtual <= mesesContrato
       ? `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`
       : null;
+  const parcelasRestantes = mesesContrato && parcelaAtual ? mesesContrato - parcelaAtual : null;
 
   return (
     <main className="min-h-screen bg-white px-4 py-8 text-neutral-900 sm:py-12 print:min-h-0 print:px-0 print:py-0">
@@ -113,6 +114,11 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
               {identificacaoParcela && (
                 <p className="text-right text-sm text-neutral-700">
                   {identificacaoParcela}
+                </p>
+              )}
+              {parcelasRestantes !== null && (
+                <p className="text-right text-sm text-neutral-700">
+                  Parcelas restantes: {parcelasRestantes}
                 </p>
               )}
             </div>

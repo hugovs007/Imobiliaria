@@ -23,7 +23,10 @@ export default async function ContratosPage() {
           "id, codigo_contrato, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco), inquilinos(nome)"
         )
         .order("created_at", { ascending: false }),
-      supabase.from("imoveis").select("id, codigo, endereco").eq("status", "disponivel"),
+      supabase
+        .from("imoveis")
+        .select("id, codigo, endereco, numero, complemento, bairro, cidade, estado, cep")
+        .eq("status", "disponivel"),
       supabase.from("inquilinos").select("id, nome").order("nome"),
       supabase
         .from("reajustes")
@@ -47,9 +50,20 @@ export default async function ContratosPage() {
             label="Imóvel (disponíveis)"
             name="imovel_id"
             required
-            options={(imoveisDisponiveis ?? []).map((i) => ({
-              value: i.id,
-              label: `${i.codigo ?? ""} ${i.endereco}`.trim(),
+            options={(imoveisDisponiveis ?? []).map((i) => {
+              const partes = [
+                i.codigo,
+                i.endereco,
+                i.numero,
+                i.complemento,
+                i.bairro,
+                `${i.cidade}/${i.estado}`,
+                i.cep,
+              ].filter(Boolean);
+              return {
+                value: i.id,
+                label: partes.join(" - "),
+              };
             }))}
           />
           <Select

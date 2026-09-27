@@ -83,7 +83,7 @@ export default async function PagamentosPage() {
               </td>
               <td className="px-4 py-2.5">
                 {(() => {
-                  const contrato = p.contratos;
+                  const contrato = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
                   const dataInicio = contrato?.data_inicio ? new Date(contrato.data_inicio) : null;
                   const dataFim = contrato?.data_fim ? new Date(contrato.data_fim) : null;
                   const dataCompetencia = new Date(p.competencia);

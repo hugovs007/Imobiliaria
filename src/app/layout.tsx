@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Gestão de Aluguéis",
-  description: "Contratos, manutenções e reajustes de aluguel",
+  description: "Contratos, pagamentos, manutenções e reajustes de aluguel",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

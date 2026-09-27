@@ -8,6 +8,7 @@ const nav = [
   { href: "/proprietarios", label: "Proprietários" },
   { href: "/inquilinos", label: "Inquilinos" },
   { href: "/contratos", label: "Contratos" },
+  { href: "/pagamentos", label: "Pagamentos" },
   { href: "/manutencoes", label: "Manutenções" },
   { href: "/contas", label: "Contas (água/energia)" },
   { href: "/arquivos", label: "Arquivos" },

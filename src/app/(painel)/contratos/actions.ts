@@ -79,7 +79,6 @@ export async function renovarContrato(formData: FormData): Promise<{ error: stri
 
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
-    revalidatePath("/pagamentos");
     revalidatePath("/");
     return { error: null };
   } catch (cause) {

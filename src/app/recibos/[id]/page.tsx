@@ -94,8 +94,8 @@ export default async function ReciboPage({ params }: { params: Promise<{ id: str
     <main className="min-h-screen bg-white px-4 py-8 text-neutral-900 sm:py-12 print:min-h-0 print:px-0 print:py-0">
       <div className="mx-auto max-w-3xl">
         <div className="mb-5 flex items-center justify-between gap-4 print:hidden">
-          <Link href="/pagamentos" className="text-sm underline" style={{ color: "var(--color-ink-soft)" }}>
-            Voltar aos pagamentos
+          <Link href="/" className="text-sm underline" style={{ color: "var(--color-ink-soft)" }}>
+            Voltar ao painel
           </Link>
           <PrintButton />
         </div>

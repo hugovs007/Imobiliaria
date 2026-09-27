@@ -4,16 +4,12 @@ import { Card, PageHeader } from "@/components/ui";
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const [imoveis, contratosAtivos, pagamentosAtrasados, manutencoesAbertas, reajustesPendentes] =
+  const [imoveis, contratosAtivos, manutencoesAbertas, reajustesPendentes] =
     await Promise.all([
       supabase.from("imoveis").select("*", { count: "exact", head: true }),
       supabase
         .from("contratos")
         .select("id, status, contrato_anterior_id"),
-      supabase
-        .from("pagamentos")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "atrasado"),
       supabase
         .from("manutencoes")
         .select("*", { count: "exact", head: true })
@@ -34,7 +30,6 @@ export default async function DashboardPage() {
   const cards = [
     { label: "Imóveis cadastrados", value: imoveis.count ?? 0 },
     { label: "Contratos ativos", value: totalContratosVigentes },
-    { label: "Pagamentos em atraso", value: pagamentosAtrasados.count ?? 0, alert: true },
     { label: "Manutenções em aberto", value: manutencoesAbertas.count ?? 0 },
     { label: "Reajustes pendentes", value: reajustesPendentes.count ?? 0 },
   ];
@@ -52,7 +47,7 @@ export default async function DashboardPage() {
               className="text-3xl font-semibold"
               style={{
                 fontFamily: "var(--font-serif)",
-                color: c.alert && c.value > 0 ? "var(--color-alert)" : "var(--color-ink)",
+                color: "var(--color-ink)",
               }}
             >
               {c.value}

@@ -44,13 +44,6 @@ const editableFields: Record<string, { path: string; fields: Record<string, Edit
       responsavel_pagamento: "text", status: "text",
     },
   },
-  pagamentos: {
-    path: "/pagamentos",
-    fields: {
-      competencia: "month", valor_devido: "number", valor_pago: "number", data_vencimento: "date",
-      data_pagamento: "date", forma_pagamento: "nullableText", status: "text",
-    },
-  },
   manutencoes: {
     path: "/manutencoes",
     fields: {

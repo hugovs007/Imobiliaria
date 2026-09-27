@@ -12,6 +12,30 @@ function dataSeguinte(data: string | null) {
   return proxima.toISOString().slice(0, 10);
 }
 
+type ImovelContrato = {
+  id: string;
+  codigo: string | null;
+  endereco: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  estado: string | null;
+  cep: string | null;
+};
+
+function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
+  if (!imovel) return "—";
+  const partes = [
+    [imovel.endereco, imovel.numero].filter(Boolean).join(", "),
+    imovel.complemento,
+    imovel.bairro,
+    [imovel.cidade, imovel.estado].filter(Boolean).join("/"),
+    imovel.cep,
+  ].filter(Boolean);
+  return partes.join(" - ");
+}
+
 export default async function ContratosPage() {
   const supabase = await createClient();
 
@@ -20,7 +44,7 @@ export default async function ContratosPage() {
       supabase
         .from("contratos")
         .select(
-          "id, codigo_contrato, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco), inquilinos(nome)"
+          "id, codigo_contrato, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco, numero, complemento, bairro, cidade, estado, cep), inquilinos(nome)"
         )
         .order("created_at", { ascending: false }),
       supabase
@@ -30,7 +54,7 @@ export default async function ContratosPage() {
       supabase.from("inquilinos").select("id, nome").order("nome"),
       supabase
         .from("reajustes")
-        .select("id, data_referencia, indice_usado, percentual_aplicado, valor_anterior, valor_novo, contratos(imoveis(endereco))")
+        .select("id, data_referencia, indice_usado, percentual_aplicado, valor_anterior, valor_novo, contratos(imoveis(id, codigo, endereco, numero, complemento, bairro, cidade, estado, cep))")
         .eq("status", "pendente"),
     ]);
   const contratosComSucessor = new Set(
@@ -114,42 +138,61 @@ export default async function ContratosPage() {
         </p>
       ) : (
         <Table head={["Imóvel", "Data de referência", "Índice", "% aplicado", "Valor atual", "Novo valor", ""]}>
-          {(reajustesPendentes ?? []).map((r) => (
-            <tr key={r.id} style={{ borderTop: "1px solid var(--color-line)" }}>
-              <td className="px-4 py-2.5">
-                {(r.contratos as unknown as { imoveis: { endereco: string } })?.imoveis?.endereco}
-              </td>
-              <td className="px-4 py-2.5">{new Date(r.data_referencia).toLocaleDateString("pt-BR")}</td>
-              <td className="px-4 py-2.5 uppercase">{r.indice_usado}</td>
-              <td className="px-4 py-2.5">{r.percentual_aplicado}%</td>
-              <td className="px-4 py-2.5">
-                <Money value={r.valor_anterior} />
-              </td>
-              <td className="px-4 py-2.5">
-                <Money value={r.valor_novo} />
-              </td>
-              <td className="px-4 py-2.5">
-                <form action={aplicarReajuste}>
-                  <input type="hidden" name="id" value={r.id} />
-                  <Button variant="ghost">Aplicar</Button>
-                </form>
-              </td>
-            </tr>
-          ))}
+          {(reajustesPendentes ?? []).map((r) => {
+            const imovelReajuste = (r.contratos as unknown as { imoveis: ImovelContrato })?.imoveis;
+            return (
+              <tr key={r.id} style={{ borderTop: "1px solid var(--color-line)" }}>
+                <td className="px-4 py-2.5">
+                  <div className="flex flex-col">
+                    {imovelReajuste?.codigo && (
+                      <span className="font-mono text-xs" style={{ color: "var(--color-ink-soft)" }}>
+                        {imovelReajuste.codigo}
+                      </span>
+                    )}
+                    <span>{enderecoCompleto(imovelReajuste)}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-2.5">{new Date(r.data_referencia).toLocaleDateString("pt-BR")}</td>
+                <td className="px-4 py-2.5 uppercase">{r.indice_usado}</td>
+                <td className="px-4 py-2.5">{r.percentual_aplicado}%</td>
+                <td className="px-4 py-2.5">
+                  <Money value={r.valor_anterior} />
+                </td>
+                <td className="px-4 py-2.5">
+                  <Money value={r.valor_novo} />
+                </td>
+                <td className="px-4 py-2.5">
+                  <form action={aplicarReajuste}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <Button variant="ghost">Aplicar</Button>
+                  </form>
+                </td>
+              </tr>
+            );
+          })}
         </Table>
       )}
 
       <div className="mt-10">
         <Table head={["ID", "Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", "Ações"]}>
           {(contratos ?? []).map((c) => {
-            const imovel = c.imoveis as unknown as { id: string; codigo: string | null; endereco: string };
+            const imovel = c.imoveis as unknown as ImovelContrato;
             const possuiRenovacao = contratosComSucessor.has(c.id);
             const contratoVigente = ["ativo", "renovado"].includes(c.status) && !possuiRenovacao;
             const statusExibido = possuiRenovacao ? "encerrado" : c.status;
             return (
               <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
                 <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{c.codigo_contrato}</td>
-                <td className="px-4 py-2.5">{imovel?.endereco}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex flex-col">
+                    {imovel?.codigo && (
+                      <span className="font-mono text-xs" style={{ color: "var(--color-ink-soft)" }}>
+                        {imovel.codigo}
+                      </span>
+                    )}
+                    <span>{enderecoCompleto(imovel)}</span>
+                  </div>
+                </td>
                 <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome}</td>
                 <td className="px-4 py-2.5">{new Date(c.data_inicio).toLocaleDateString("pt-BR")}</td>
                 <td className="px-4 py-2.5">

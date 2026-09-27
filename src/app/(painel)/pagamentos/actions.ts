@@ -9,32 +9,36 @@ export async function lancarPagamento(formData: FormData) {
   // Check if a payment for this contract and month already exists
   const competencia = String(formData.get("competencia")) + "-01";
   const contratoId = String(formData.get("contrato_id"));
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("pagamentos")
     .select("id")
     .eq("contrato_id", contratoId)
     .eq("competencia", competencia)
     .maybeSingle();
+
+  if (existingError) {
+    throw new Error(`Erro ao verificar pagamento existente: ${existingError.message}`);
+  }
+
   if (existing) {
     throw new Error("Pagamento já registrado para este contrato e competência.");
   }
-  try {
-    const { error } = await supabase.from("pagamentos").insert({
-      contrato_id: contratoId,
-      competencia,
-      valor_devido: Number(formData.get("valor_devido")),
-      data_vencimento: String(formData.get("data_vencimento")),
-      status: "pendente",
-    });
-    if (error) {
-      if (error.message.includes("duplicate key")) {
-        throw new Error("Já existe um pagamento registrado para este contrato e competência.");
-      }
-      throw new Error(error.message);
+
+  const { error } = await supabase.from("pagamentos").insert({
+    contrato_id: contratoId,
+    competencia,
+    valor_devido: Number(formData.get("valor_devido")),
+    data_vencimento: String(formData.get("data_vencimento")),
+    status: "pendente",
+  });
+
+  if (error) {
+    if (error.message.includes("duplicate key") || error.code === "23505") {
+      throw new Error("Já existe um pagamento registrado para este contrato e competência.");
     }
-  } catch (err: any) {
-    throw new Error(err.message || "Erro ao lançar pagamento.");
+    throw new Error(error.message);
   }
+
   revalidatePath("/pagamentos");
 }
 
@@ -43,16 +47,23 @@ export async function registrarPagamento(formData: FormData) {
   const id = String(formData.get("id"));
 
   // Fetch current pagamento to validate full payment
-  const { data: pagamentoData } = await supabase
+  const { data: pagamentoData, error: fetchError } = await supabase
     .from("pagamentos")
     .select("valor_devido, valor_pago")
     .eq("id", id)
     .single();
+
+  if (fetchError) {
+    throw new Error(`Erro ao buscar pagamento: ${fetchError.message}`);
+  }
+
   const valorDevido = pagamentoData?.valor_devido ?? 0;
   const valorPago = Number(formData.get("valor_pago"));
+
   if (valorPago < valorDevido) {
     throw new Error("Pagamento parcial não permitido. Complete o valor devido antes de avançar para a próxima parcela.");
   }
+
   const { error } = await supabase
     .from("pagamentos")
     .update({
@@ -64,5 +75,6 @@ export async function registrarPagamento(formData: FormData) {
     .eq("id", id);
 
   if (error) throw new Error(error.message);
+
   revalidatePath("/pagamentos");
 }

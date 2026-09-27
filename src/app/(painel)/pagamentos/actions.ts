@@ -6,9 +6,21 @@ import { revalidatePath } from "next/cache";
 export async function lancarPagamento(formData: FormData) {
   const supabase = await createClient();
 
+  // Check if a payment for this contract and month already exists
+  const competencia = String(formData.get("competencia")) + "-01";
+  const contratoId = String(formData.get("contrato_id"));
+  const { data: existing } = await supabase
+    .from("pagamentos")
+    .select("id")
+    .eq("contrato_id", contratoId)
+    .eq("competencia", competencia)
+    .single();
+  if (existing) {
+    throw new Error("Pagamento já registrado para este contrato e competência.");
+  }
   const { error } = await supabase.from("pagamentos").insert({
-    contrato_id: String(formData.get("contrato_id")),
-    competencia: String(formData.get("competencia")) + "-01",
+    contrato_id: contratoId,
+    competencia,
     valor_devido: Number(formData.get("valor_devido")),
     data_vencimento: String(formData.get("data_vencimento")),
     status: "pendente",

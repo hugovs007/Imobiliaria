@@ -64,7 +64,7 @@ export default async function ContratosPage() {
                 value: i.id,
                 label: partes.join(" - "),
               };
-            }))}
+            })}
           />
           <Select
             label="Inquilino"

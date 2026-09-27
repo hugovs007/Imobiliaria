@@ -1,5 +1,43 @@
 import { ReactNode } from "react";
 
+export function Alert({
+  children,
+  variant = "default",
+  className,
+}: {
+  children: ReactNode;
+  variant?: "default" | "destructive";
+  className?: string;
+}) {
+  const base = "rounded-md border p-4 text-sm";
+  if (variant === "destructive") {
+    return (
+      <div
+        className={`${base} ${className ?? ""}`}
+        style={{
+          borderColor: "var(--color-alert)",
+          background: "var(--color-alert)1a",
+          color: "var(--color-alert)",
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`${base} ${className ?? ""}`}
+      style={{
+        borderColor: "var(--color-line)",
+        background: "var(--color-teal)1a",
+        color: "var(--color-teal)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Field({
   label,
   name,

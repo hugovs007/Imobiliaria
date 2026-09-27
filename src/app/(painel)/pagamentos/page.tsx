@@ -1,23 +1,38 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table } from "@/components/ui";
+import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table, Alert } from "@/components/ui";
 import { RecordEditor } from "@/components/record-editor";
 import { lancarPagamento, registrarPagamento } from "./actions";
 
 export default async function PagamentosPage() {
   const supabase = await createClient();
 
-  const [{ data: pagamentos }, { data: contratos }] = await Promise.all([
-    supabase
-      .from("pagamentos")
-      .select(
-        "id, competencia, valor_devido, valor_pago, data_vencimento, data_pagamento, forma_pagamento, status, contratos(data_inicio, data_fim, imoveis(endereco), inquilinos(nome))"
-      )
-      .order("competencia", { ascending: false }),
-    supabase
-      .from("contratos")
-      .select("id, codigo_contrato, status, contrato_anterior_id, valor_aluguel_atual, imoveis(endereco), inquilinos(nome)"),
-  ]);
+  let pagamentos: any[] = [];
+  let contratos: any[] = [];
+  let error: string | null = null;
+
+  try {
+    const [{ data: pagamentosData, error: pagamentosError }, { data: contratosData, error: contratosError }] = await Promise.all([
+      supabase
+        .from("pagamentos")
+        .select(
+          "id, competencia, valor_devido, valor_pago, data_vencimento, data_pagamento, forma_pagamento, status, contratos(data_inicio, data_fim, imoveis(endereco), inquilinos(nome))"
+        )
+        .order("competencia", { ascending: false }),
+      supabase
+        .from("contratos")
+        .select("id, codigo_contrato, status, contrato_anterior_id, valor_aluguel_atual, imoveis(endereco), inquilinos(nome)"),
+    ]);
+
+    if (pagamentosError) throw pagamentosError;
+    if (contratosError) throw contratosError;
+
+    pagamentos = pagamentosData ?? [];
+    contratos = contratosData ?? [];
+  } catch (err: any) {
+    console.error("Erro ao carregar pagamentos:", err);
+    error = err.message || "Erro ao carregar dados. Verifique as variáveis de ambiente do Supabase.";
+  }
 
   const contratosComSucessor = new Set(
     (contratos ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
@@ -25,6 +40,17 @@ export default async function PagamentosPage() {
   const contratosVigentes = (contratos ?? []).filter(
     (contrato) => ["ativo", "renovado"].includes(contrato.status) && !contratosComSucessor.has(contrato.id)
   );
+
+  if (error) {
+    return (
+      <div>
+        <PageHeader title="Pagamentos e recibos" subtitle="Lançamento mensal de aluguéis e baixa de pagamentos." />
+        <Alert variant="destructive" className="mt-4">
+          <strong>Erro ao carregar dados:</strong> {error}
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div>

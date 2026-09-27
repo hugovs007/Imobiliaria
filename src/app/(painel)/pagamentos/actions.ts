@@ -14,7 +14,7 @@ export async function lancarPagamento(formData: FormData) {
     .select("id")
     .eq("contrato_id", contratoId)
     .eq("competencia", competencia)
-    .single();
+    .maybeSingle();
   if (existing) {
     throw new Error("Pagamento já registrado para este contrato e competência.");
   }

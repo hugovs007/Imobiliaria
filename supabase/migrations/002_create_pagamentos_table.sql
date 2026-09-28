@@ -1,6 +1,18 @@
 -- 2026-09-27 20:50:00
 
-CREATE TYPE public.status_pagamento AS ENUM ('pendente', 'pago', 'atrasado', 'isento');
+-- Create enum type for payment status if it does not exist
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'status_pagamento') THEN
+    CREATE TYPE public.status_pagamento AS ENUM ('pendente', 'pago', 'atrasado', 'isento');
+  END IF;
+END $$;
+
+-- Create enum type for storage provider if it does not exist
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'storage_provider') THEN
+    CREATE TYPE public.storage_provider AS ENUM ('supabase', 'google', 'aws');
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.pagamentos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

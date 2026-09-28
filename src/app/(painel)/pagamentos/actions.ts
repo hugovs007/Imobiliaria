@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 /**
  * Lança a cobrança mensal para um contrato específico.
@@ -9,44 +10,42 @@ import { revalidatePath } from "next/cache";
  */
 export async function lancarCobranca(formData: FormData) {
   const supabase = await createClient();
-
   const competencia = String(formData.get("competencia")) + "-01";
   const contratoId = String(formData.get("contrato_id"));
   const valorDevido = Number(formData.get("valor_devido"));
   const dataVencimento = String(formData.get("data_vencimento"));
-
-  // Verifica se já existe pagamento para este contrato e competência
-  const { data: existing, error: existingError } = await supabase
-    .from("pagamentos")
-    .select("id")
-    .eq("contrato_id", contratoId)
-    .eq("competencia", competencia)
-    .maybeSingle();
-
-  if (existingError) {
-    throw new Error(`Erro ao verificar pagamento existente: ${existingError.message}`);
-  }
-
-  if (existing) {
-    throw new Error("Pagamento já registrado para este contrato e competência.");
-  }
-
-  const { error } = await supabase.from("pagamentos").insert({
-    contrato_id: contratoId,
-    competencia,
-    valor_devido: valorDevido,
-    data_vencimento: dataVencimento,
-    status: "pendente",
-  });
-
-  if (error) {
-    if (error.message.includes("duplicate key") || error.code === "23505") {
-      throw new Error("Já existe um pagamento registrado para este contrato e competência.");
+  try {
+    // Verifica se já existe pagamento para este contrato e competência
+    const { data: existing, error: existingError } = await supabase
+      .from("pagamentos")
+      .select("id")
+      .eq("contrato_id", contratoId)
+      .eq("competencia", competencia)
+      .maybeSingle();
+    if (existingError) {
+      throw new Error(`Erro ao verificar pagamento existente: ${existingError.message}`);
     }
-    throw new Error(error.message);
+    if (existing) {
+      throw new Error("Pagamento já registrado para este contrato e competência.");
+    }
+    const { error } = await supabase.from("pagamentos").insert({
+      contrato_id: contratoId,
+      competencia,
+      valor_devido: valorDevido,
+      data_vencimento: dataVencimento,
+      status: "pendente",
+    });
+    if (error) {
+      if (error.message.includes("duplicate key") || error.code === "23505") {
+        throw new Error("Já existe um pagamento registrado para este contrato e competência.");
+      }
+      throw new Error(error.message);
+    }
+    revalidatePath("/pagamentos");
+  } catch (err: any) {
+    // Redirect back with error message
+    redirect(`/pagamentos?error=${encodeURIComponent(err.message)}`);
   }
-
-  revalidatePath("/pagamentos");
 }
 
 /**

@@ -17,9 +17,10 @@ const TIPOS_IMOVEL = [
 ];
 
 const FINALIDADES = [
-  { value: "aluguel", label: "Aluguel" },
-  { value: "venda", label: "Venda" },
-  { value: "aluguel_venda", label: "Aluguel e Venda" },
+  { value: "residencial", label: "Residencial" },
+  { value: "comercial", label: "Comercial" },
+  { value: "industrial", label: "Industrial" },
+  { value: "outro", label: "Outro" },
 ];
 
 export default async function ImoveisPage() {
@@ -27,7 +28,7 @@ export default async function ImoveisPage() {
   const [{ data: imoveis }, { data: proprietarios }] = await Promise.all([
     supabase
       .from("imoveis")
-      .select("id, codigo, proprietario_id, endereco, numero, complemento, bairro, cidade, estado, cep, tipo, finalidade, status, quartos, banheiros, garagem, area_util, valor_venda, valor_aluguel, valor_iptu, propriedade, observacoes, proprietarios(nome)")
+      .select("id, codigo, proprietario_id, logradouro, numero, complemento, bairro, cidade, uf, cep, tipo, finalidade, status, area_total, area_util, valor_aluguel, valor_condominio, iptu_mensal, matricula, observacoes, proprietarios(nome)")
       .order("created_at", { ascending: false }),
     supabase.from("proprietarios").select("id, nome").order("nome"),
   ]);
@@ -53,7 +54,7 @@ export default async function ImoveisPage() {
           <Select
             label="Finalidade"
             name="finalidade"
-            defaultValue="aluguel"
+            defaultValue="residencial"
             options={FINALIDADES}
           />
           <Select
@@ -67,21 +68,19 @@ export default async function ImoveisPage() {
               { value: "inativo", label: "Inativo" },
             ]}
           />
-          <Field label="Endereço" name="endereco" required />
+          <Field label="CEP" name="cep" />
+          <Field label="Logradouro" name="logradouro" required />
           <Field label="Número" name="numero" />
           <Field label="Complemento" name="complemento" placeholder="Apto, bloco, casa dos fundos..." />
           <Field label="Bairro" name="bairro" />
           <Field label="Cidade" name="cidade" required />
-          <Field label="Estado (UF)" name="estado" required />
-          <Field label="CEP" name="cep" />
-          <Field label="Quartos" name="quartos" type="number" />
-          <Field label="Banheiros" name="banheiros" type="number" />
-          <Field label="Garagem" name="garagem" type="number" />
+          <Field label="UF" name="uf" required />
+          <Field label="Área Total (m²)" name="area_total" type="number" step="0.01" />
           <Field label="Área Útil (m²)" name="area_util" type="number" step="0.01" />
-          <Field label="Valor Venda (R$)" name="valor_venda" type="number" step="0.01" />
           <Field label="Valor Aluguel (R$)" name="valor_aluguel" type="number" step="0.01" required />
-          <Field label="Valor IPTU (R$)" name="valor_iptu" type="number" step="0.01" />
-          <Field label="PROPRIEDADE" name="propriedade" placeholder="Nome da propriedade/condomínio" />
+          <Field label="Valor Condomínio (R$)" name="valor_condominio" type="number" step="0.01" />
+          <Field label="IPTU Mensal (R$)" name="iptu_mensal" type="number" step="0.01" />
+          <Field label="Matrícula" name="matricula" placeholder="Número da matrícula do imóvel" />
           <TextArea label="Observações" name="observacoes" className="sm:col-span-2 lg:col-span-3" />
           <div className="sm:col-span-2 lg:col-span-3">
             <Button>Cadastrar imóvel</Button>
@@ -90,14 +89,15 @@ export default async function ImoveisPage() {
       </Card>
 
       <div className="mt-8">
-        <Table head={["Código", "Endereço", "Complemento", "Cidade/UF", "Tipo", "Finalidade", "Proprietário", "Aluguel", "Status", ""]}>
+        <Table head={["Código", "Logradouro", "Número", "Complemento", "Cidade/UF", "Tipo", "Finalidade", "Proprietário", "Aluguel", "Status", ""]}>
           {(imoveis ?? []).map((i) => (
             <tr key={i.id} style={{ borderTop: "1px solid var(--color-line)" }}>
               <td className="px-4 py-2.5">{i.codigo ?? "—"}</td>
-              <td className="px-4 py-2.5">{i.endereco}</td>
+              <td className="px-4 py-2.5">{i.logradouro}</td>
+              <td className="px-4 py-2.5">{i.numero ?? "—"}</td>
               <td className="px-4 py-2.5">{i.complemento ?? "—"}</td>
               <td className="px-4 py-2.5">
-                {i.cidade}/{i.estado}
+                {i.cidade}/{i.uf}
               </td>
               <td className="px-4 py-2.5 capitalize">{i.tipo}</td>
               <td className="px-4 py-2.5 capitalize">{i.finalidade}</td>
@@ -129,21 +129,19 @@ export default async function ImoveisPage() {
                         { value: "manutencao", label: "Em manutenção" },
                         { value: "inativo", label: "Inativo" },
                       ]},
-                    { name: "endereco", label: "Endereço", value: i.endereco, required: true },
+                    { name: "cep", label: "CEP", value: i.cep },
+                    { name: "logradouro", label: "Logradouro", value: i.logradouro, required: true },
                     { name: "numero", label: "Número", value: i.numero },
                     { name: "complemento", label: "Complemento", value: i.complemento },
                     { name: "bairro", label: "Bairro", value: i.bairro },
                     { name: "cidade", label: "Cidade", value: i.cidade, required: true },
-                    { name: "estado", label: "Estado (UF)", value: i.estado, required: true },
-                    { name: "cep", label: "CEP", value: i.cep },
-                    { name: "quartos", label: "Quartos", value: i.quartos, type: "number" },
-                    { name: "banheiros", label: "Banheiros", value: i.banheiros, type: "number" },
-                    { name: "garagem", label: "Garagem", value: i.garagem, type: "number" },
+                    { name: "uf", label: "UF", value: i.uf, required: true },
+                    { name: "area_total", label: "Área Total (m²)", value: i.area_total, type: "number", step: "0.01" },
                     { name: "area_util", label: "Área Útil (m²)", value: i.area_util, type: "number", step: "0.01" },
-                    { name: "valor_venda", label: "Valor Venda (R$)", value: i.valor_venda, type: "number", step: "0.01" },
                     { name: "valor_aluguel", label: "Valor Aluguel (R$)", value: i.valor_aluguel, type: "number", step: "0.01", required: true },
-                    { name: "valor_iptu", label: "Valor IPTU (R$)", value: i.valor_iptu, type: "number", step: "0.01" },
-                    { name: "propriedade", label: "PROPRIEDADE", value: i.propriedade },
+                    { name: "valor_condominio", label: "Valor Condomínio (R$)", value: i.valor_condominio, type: "number", step: "0.01" },
+                    { name: "iptu_mensal", label: "IPTU Mensal (R$)", value: i.iptu_mensal, type: "number", step: "0.01" },
+                    { name: "matricula", label: "Matrícula", value: i.matricula },
                     { name: "observacoes", label: "Observações", value: i.observacoes, kind: "textarea" },
                   ]}
                 />

@@ -15,13 +15,14 @@ function dataSeguinte(data: string | null) {
 type ImovelContrato = {
   id: string;
   codigo: string | null;
-  logradouro: string | null;
-  numero: string | null;
-  complemento: string | null;
-  bairro: string | null;
-  cidade: string | null;
-  uf: string | null;
-  cep: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  uf?: string | null;
+  cep?: string | null;
+  status?: string | null;
 };
 
 function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
@@ -33,39 +34,56 @@ function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
     [imovel.cidade, imovel.uf].filter(Boolean).join("/"),
     imovel.cep,
   ].filter(Boolean);
-  return partes.join(" - ");
+  return partes.length > 0 ? partes.join(" - ") : "Endereço não informado";
 }
 
 export default async function ContratosPage() {
   const supabase = await createClient();
 
-  const [{ data: contratos }, { data: imoveisDisponiveis }, { data: inquilinos }, { data: reajustesPendentes }] =
-    await Promise.all([
-      supabase
-        .from("contratos")
-        .select(
-          "id, codigo_contrato, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, logradouro, numero, complemento, bairro, cidade, uf, cep), inquilinos(nome)"
-        )
-        .order("created_at", { ascending: false }),
-      // Busca imóveis disponíveis (aceitando variações de case no status)
-      supabase
-        .from("imoveis")
-        .select("id, codigo, logradouro, numero, complemento, bairro, cidade, uf, cep")
-        .or("status.eq.disponivel,status.eq.Disponível"),
-      supabase.from("inquilinos").select("id, nome").order("nome"),
-      supabase
-        .from("reajustes")
-        .select("id, data_referencia, indice_usado, percentual_aplicado, valor_anterior, valor_novo, contratos(imoveis(id, codigo, logradouro, numero, complemento, bairro, cidade, uf, cep))")
-        .eq("status", "pendente"),
-    ]);
+  // 1. Busca simplificada para evitar falhas por colunas inconsistentes
+  const [resContratos, resImoveis, resInquilinos, resReajustes] = await Promise.all([
+    supabase
+      .from("contratos")
+      .select("*, imoveis(*), inquilinos(nome)")
+      .order("created_at", { ascending: false }),
+    
+    // Busca TODOS os imóveis sem aplicar filtro restritivo de status que possa zerar o resultado
+    supabase
+      .from("imoveis")
+      .select("*")
+      .order("created_at", { ascending: false }),
 
-  const listaContratos = contratos ?? [];
-  const listaImoveis = imoveisDisponiveis ?? [];
-  const listaInquilinos = inquilinos ?? [];
-  const listaReajustes = reajustesPendentes ?? [];
+    // Busca TODOS os inquilinos
+    supabase
+      .from("inquilinos")
+      .select("*")
+      .order("nome", { ascending: true }),
+
+    supabase
+      .from("reajustes")
+      .select("*, contratos(*, imoveis(*))")
+      .eq("status", "pendente"),
+  ]);
+
+  // Exibe eventuais erros no log do servidor para diagnóstico
+  if (resImoveis.error) console.error("Erro ao buscar imoveis para contratos:", resImoveis.error.message);
+  if (resInquilinos.error) console.error("Erro ao buscar inquilinos para contratos:", resInquilinos.error.message);
+
+  const listaContratos = resContratos.data ?? [];
+  const todosImoveis = resImoveis.data ?? [];
+  const listaInquilinos = resInquilinos.data ?? [];
+  const listaReajustes = resReajustes.data ?? [];
+
+  // Filtra imóveis disponíveis em memória (aceita 'disponivel', 'Disponível' ou sem status definido)
+  const imoveisDisponiveis = todosImoveis.filter(
+    (i) => !i.status || i.status.toLowerCase() === "disponivel"
+  );
+
+  // Se por algum motivo o filtro zerar, exibe todos os imóveis cadastrados para permitir o vínculo
+  const imoveisParaExibir = imoveisDisponiveis.length > 0 ? imoveisDisponiveis : todosImoveis;
 
   const contratosComSucessor = new Set(
-    listaContratos.flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
+    listaContratos.flatMap((contrato) => (contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : []))
   );
 
   return (
@@ -83,49 +101,54 @@ export default async function ContratosPage() {
             required
             options={[
               { value: "", label: "— selecione um imóvel —" },
-              ...listaImoveis.map((i) => {
-                const partes = [
+              ...imoveisParaExibir.map((i) => {
+                const rotuloEndereco = [
                   i.codigo,
-                  i.logradouro,
+                  i.logradouro || i.endereco,
                   i.numero,
-                  i.complemento,
-                  i.bairro,
-                  `${i.cidade}/${i.uf}`,
-                  i.cep,
-                ].filter(Boolean);
+                  i.cidade ? `${i.cidade}/${i.uf || i.estado}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" - ");
+
                 return {
                   value: i.id,
-                  label: partes.join(" - "),
+                  label: rotuloEndereco || `Imóvel ID: ${i.id.slice(0, 8)}`,
                 };
-              })
+              }),
             ]}
           />
+
           <Select
             label="Inquilino"
             name="inquilino_id"
             required
             options={[
               { value: "", label: "— selecione um inquilino —" },
-              ...listaInquilinos.map((i) => ({ value: i.id, label: i.nome }))
+              ...listaInquilinos.map((i) => ({ value: i.id, label: i.nome })),
             ]}
           />
+
           <Field label="Data de início" name="data_inicio" type="date" required />
           <Field label="Data de fim (opcional)" name="data_fim" type="date" />
           <Field label="Dia de vencimento (1-31)" name="dia_vencimento" type="number" required />
           <Field label="Valor do aluguel (R$)" name="valor_aluguel_atual" type="number" step="0.01" required />
+
           <Select
             label="Índice de reajuste"
             name="indice_reajuste"
-            defaultValue="igpm"
+            defaultValue="IGP-M"
             options={[
-              { value: "igpm", label: "IGP-M" },
-              { value: "ipca", label: "IPCA" },
-              { value: "outro", label: "Outro (definir em cláusula)" },
+              { value: "IGP-M", label: "IGP-M" },
+              { value: "IPCA", label: "IPCA" },
+              { value: "Outro", label: "Outro (definir em cláusula)" },
             ]}
           />
+
           <Field label="Periodicidade do reajuste (meses)" name="periodicidade_reajuste_meses" type="number" defaultValue={12} />
           <Field label="Caução/depósito (R$)" name="deposito_caucao" type="number" step="0.01" />
           <TextArea label="Cláusulas especiais" name="clausulas_especiais" />
+
           <div className="sm:col-span-2">
             <Button>Cadastrar contrato</Button>
           </div>
@@ -191,11 +214,11 @@ export default async function ContratosPage() {
           {listaContratos.map((c) => {
             const imovel = c.imoveis as unknown as ImovelContrato;
             const possuiRenovacao = contratosComSucessor.has(c.id);
-            const contratoVigente = ["ativo", "renovado"].includes(c.status) && !possuiRenovacao;
+            const contratoVigente = ["ativo", "renovado", "Ativo"].includes(c.status) && !possuiRenovacao;
             const statusExibido = possuiRenovacao ? "encerrado" : c.status;
             return (
               <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
-                <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{c.codigo_contrato}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{c.codigo_contrato || c.codigo || "—"}</td>
                 <td className="px-4 py-2.5">
                   <div className="flex flex-col">
                     {imovel?.codigo && (
@@ -209,7 +232,7 @@ export default async function ContratosPage() {
                 <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
                 <td className="px-4 py-2.5">{new Date(c.data_inicio).toLocaleDateString("pt-BR")}</td>
                 <td className="px-4 py-2.5">
-                  <Money value={c.valor_aluguel_atual} />
+                  <Money value={c.valor_aluguel_atual || c.valor_atual} />
                 </td>
                 <td className="px-4 py-2.5 uppercase">{c.indice_reajuste}</td>
                 <td className="px-4 py-2.5">
@@ -218,12 +241,12 @@ export default async function ContratosPage() {
                 <td className="px-4 py-2.5">
                   {contratoVigente && (
                     <div className="flex flex-col items-start gap-2">
-                      <CloseContractForm contractId={c.id} contractCode={c.codigo_contrato} />
+                      <CloseContractForm contractId={c.id} contractCode={c.codigo_contrato || c.id} />
                       <RenewalForm
                         contractId={c.id}
-                        contractCode={c.codigo_contrato}
+                        contractCode={c.codigo_contrato || c.id}
                         startDate={dataSeguinte(c.data_fim)}
-                        currentRent={c.valor_aluguel_atual}
+                        currentRent={c.valor_aluguel_atual || c.valor_atual}
                         index={c.indice_reajuste}
                       />
                     </div>
@@ -235,13 +258,13 @@ export default async function ContratosPage() {
                       { name: "data_inicio", label: "Data de início", value: c.data_inicio, type: "date", required: true },
                       { name: "data_fim", label: "Data de fim", value: c.data_fim, type: "date" },
                       { name: "dia_vencimento", label: "Dia de vencimento", value: c.dia_vencimento, type: "number", required: true },
-                      { name: "valor_aluguel_atual", label: "Aluguel atual (R$)", value: c.valor_aluguel_atual, type: "number", step: "0.01", required: true },
+                      { name: "valor_aluguel_atual", label: "Aluguel atual (R$)", value: c.valor_aluguel_atual || c.valor_atual, type: "number", step: "0.01", required: true },
                       {
                         name: "indice_reajuste",
                         label: "Índice de reajuste",
                         kind: "select",
                         value: c.indice_reajuste,
-                        options: [{ value: "igpm", label: "IGP-M" }, { value: "ipca", label: "IPCA" }, { value: "outro", label: "Outro" }],
+                        options: [{ value: "IGP-M", label: "IGP-M" }, { value: "IPCA", label: "IPCA" }, { value: "Outro", label: "Outro" }],
                       },
                     ]}
                   />

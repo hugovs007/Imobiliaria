@@ -3,6 +3,7 @@
 -- up
 CREATE TABLE IF NOT EXISTS public.contratos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  codigo_contrato text NOT NULL,
   imovel_id uuid NOT NULL REFERENCES public.imoveis(id) ON DELETE RESTRICT,
   inquilino_id uuid NOT NULL REFERENCES public.inquilinos(id) ON DELETE RESTRICT,
   data_inicio date NOT NULL,

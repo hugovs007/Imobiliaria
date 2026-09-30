@@ -9,6 +9,18 @@ export async function criarContrato(formData: FormData) {
   const imovel_id = String(formData.get("imovel_id"));
   const valor = Number(formData.get("valor_aluguel_atual"));
 
+  // Busca o código do imóvel para gerar o código do contrato
+  const { data: imovel } = await supabase
+    .from("imoveis")
+    .select("codigo")
+    .eq("id", imovel_id)
+    .single();
+
+  const imovelCodigo = imovel?.codigo ?? "IMV";
+  const dataInicio = String(formData.get("data_inicio"));
+  const anoMes = dataInicio.replace("-", "").slice(0, 6);
+  const codigoContrato = `${imovelCodigo}-${anoMes}`;
+
   const { data: contratosAtivos, error: contratosError } = await supabase
     .from("contratos")
     .select("id, status, contrato_anterior_id")
@@ -23,9 +35,10 @@ export async function criarContrato(formData: FormData) {
   }
 
   const { error } = await supabase.from("contratos").insert({
+    codigo_contrato: codigoContrato,
     imovel_id,
     inquilino_id: String(formData.get("inquilino_id")),
-    data_inicio: String(formData.get("data_inicio")),
+    data_inicio: dataInicio,
     data_fim: String(formData.get("data_fim") || "") || null,
     dia_vencimento: Number(formData.get("dia_vencimento")),
     valor_aluguel_atual: valor,

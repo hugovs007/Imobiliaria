@@ -15,22 +15,22 @@ function dataSeguinte(data: string | null) {
 type ImovelContrato = {
   id: string;
   codigo: string | null;
-  endereco: string | null;
+  logradouro: string | null;
   numero: string | null;
   complemento: string | null;
   bairro: string | null;
   cidade: string | null;
-  estado: string | null;
+  uf: string | null;
   cep: string | null;
 };
 
 function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
   if (!imovel) return "—";
   const partes = [
-    [imovel.endereco, imovel.numero].filter(Boolean).join(", "),
+    [imovel.logradouro, imovel.numero].filter(Boolean).join(", "),
     imovel.complemento,
     imovel.bairro,
-    [imovel.cidade, imovel.estado].filter(Boolean).join("/"),
+    [imovel.cidade, imovel.uf].filter(Boolean).join("/"),
     imovel.cep,
   ].filter(Boolean);
   return partes.join(" - ");
@@ -44,21 +44,28 @@ export default async function ContratosPage() {
       supabase
         .from("contratos")
         .select(
-          "id, codigo_contrato, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, endereco, numero, complemento, bairro, cidade, estado, cep), inquilinos(nome)"
+          "id, codigo_contrato, imovel_id, inquilino_id, contrato_anterior_id, data_inicio, data_fim, dia_vencimento, valor_aluguel_atual, indice_reajuste, periodicidade_reajuste_meses, deposito_caucao, clausulas_especiais, status, imoveis(id, codigo, logradouro, numero, complemento, bairro, cidade, uf, cep), inquilinos(nome)"
         )
         .order("created_at", { ascending: false }),
+      // Busca imóveis disponíveis (aceitando variações de case no status)
       supabase
         .from("imoveis")
-        .select("id, codigo, endereco, numero, complemento, bairro, cidade, estado, cep")
-        .eq("status", "disponivel"),
+        .select("id, codigo, logradouro, numero, complemento, bairro, cidade, uf, cep")
+        .or("status.eq.disponivel,status.eq.Disponível"),
       supabase.from("inquilinos").select("id, nome").order("nome"),
       supabase
         .from("reajustes")
-        .select("id, data_referencia, indice_usado, percentual_aplicado, valor_anterior, valor_novo, contratos(imoveis(id, codigo, endereco, numero, complemento, bairro, cidade, estado, cep))")
+        .select("id, data_referencia, indice_usado, percentual_aplicado, valor_anterior, valor_novo, contratos(imoveis(id, codigo, logradouro, numero, complemento, bairro, cidade, uf, cep))")
         .eq("status", "pendente"),
     ]);
+
+  const listaContratos = contratos ?? [];
+  const listaImoveis = imoveisDisponiveis ?? [];
+  const listaInquilinos = inquilinos ?? [];
+  const listaReajustes = reajustesPendentes ?? [];
+
   const contratosComSucessor = new Set(
-    (contratos ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
+    listaContratos.flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
   );
 
   return (
@@ -74,27 +81,33 @@ export default async function ContratosPage() {
             label="Imóvel (disponíveis)"
             name="imovel_id"
             required
-            options={(imoveisDisponiveis ?? []).map((i) => {
-              const partes = [
-                i.codigo,
-                i.endereco,
-                i.numero,
-                i.complemento,
-                i.bairro,
-                `${i.cidade}/${i.estado}`,
-                i.cep,
-              ].filter(Boolean);
-              return {
-                value: i.id,
-                label: partes.join(" - "),
-              };
-            })}
+            options={[
+              { value: "", label: "— selecione um imóvel —" },
+              ...listaImoveis.map((i) => {
+                const partes = [
+                  i.codigo,
+                  i.logradouro,
+                  i.numero,
+                  i.complemento,
+                  i.bairro,
+                  `${i.cidade}/${i.uf}`,
+                  i.cep,
+                ].filter(Boolean);
+                return {
+                  value: i.id,
+                  label: partes.join(" - "),
+                };
+              })
+            ]}
           />
           <Select
             label="Inquilino"
             name="inquilino_id"
             required
-            options={(inquilinos ?? []).map((i) => ({ value: i.id, label: i.nome }))}
+            options={[
+              { value: "", label: "— selecione um inquilino —" },
+              ...listaInquilinos.map((i) => ({ value: i.id, label: i.nome }))
+            ]}
           />
           <Field label="Data de início" name="data_inicio" type="date" required />
           <Field label="Data de fim (opcional)" name="data_fim" type="date" />
@@ -132,13 +145,13 @@ export default async function ContratosPage() {
         pactuado em contrato usando os valores cadastrados em &quot;Índices econômicos&quot;.
       </p>
 
-      {(reajustesPendentes ?? []).length === 0 ? (
+      {listaReajustes.length === 0 ? (
         <p className="text-sm" style={{ color: "var(--color-ink-soft)" }}>
           Nenhum reajuste pendente no momento.
         </p>
       ) : (
         <Table head={["Imóvel", "Data de referência", "Índice", "% aplicado", "Valor atual", "Novo valor", ""]}>
-          {(reajustesPendentes ?? []).map((r) => {
+          {listaReajustes.map((r) => {
             const imovelReajuste = (r.contratos as unknown as { imoveis: ImovelContrato })?.imoveis;
             return (
               <tr key={r.id} style={{ borderTop: "1px solid var(--color-line)" }}>
@@ -175,7 +188,7 @@ export default async function ContratosPage() {
 
       <div className="mt-10">
         <Table head={["ID", "Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", "Ações"]}>
-          {(contratos ?? []).map((c) => {
+          {listaContratos.map((c) => {
             const imovel = c.imoveis as unknown as ImovelContrato;
             const possuiRenovacao = contratosComSucessor.has(c.id);
             const contratoVigente = ["ativo", "renovado"].includes(c.status) && !possuiRenovacao;
@@ -193,7 +206,7 @@ export default async function ContratosPage() {
                     <span>{enderecoCompleto(imovel)}</span>
                   </div>
                 </td>
-                <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome}</td>
+                <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
                 <td className="px-4 py-2.5">{new Date(c.data_inicio).toLocaleDateString("pt-BR")}</td>
                 <td className="px-4 py-2.5">
                   <Money value={c.valor_aluguel_atual} />
@@ -230,9 +243,6 @@ export default async function ContratosPage() {
                         value: c.indice_reajuste,
                         options: [{ value: "igpm", label: "IGP-M" }, { value: "ipca", label: "IPCA" }, { value: "outro", label: "Outro" }],
                       },
-                      { name: "periodicidade_reajuste_meses", label: "Periodicidade (meses)", value: c.periodicidade_reajuste_meses, type: "number" },
-                      { name: "deposito_caucao", label: "Caução/depósito (R$)", value: c.deposito_caucao, type: "number", step: "0.01" },
-                      { name: "clausulas_especiais", label: "Cláusulas especiais", value: c.clausulas_especiais, kind: "textarea" },
                     ]}
                   />
                 </td>

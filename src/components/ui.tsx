@@ -61,7 +61,7 @@ export function Field({
 }) {
   return (
     <label className={`flex flex-col gap-1 text-sm ${className ?? ""}`}>
-      <span className="text-ink-soft" style={{ color: "var(--color-ink-soft)" }}>
+      <span style={{ color: "var(--color-ink-soft)" }}>
         {label}
         {required && <span style={{ color: "var(--color-alert)" }}> *</span>}
       </span>
@@ -73,10 +73,6 @@ export function Field({
         required={required}
         step={step}
         placeholder={placeholder}
-        className="rounded-sm border px-3 py-2 bg-white/70 focus:outline-none focus:ring-2"
-        style={{
-          borderColor: "var(--color-line)",
-        }}
       />
     </label>
   );
@@ -110,8 +106,6 @@ export function Select({
         defaultValue={defaultValue}
         value={value}
         required={required}
-        className="rounded-sm border px-3 py-2 bg-white/70 focus:outline-none focus:ring-2"
-        style={{ borderColor: "var(--color-line)" }}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -144,8 +138,6 @@ export function TextArea({
         defaultValue={defaultValue}
         value={value}
         rows={3}
-        className="rounded-sm border px-3 py-2 bg-white/70 focus:outline-none focus:ring-2"
-        style={{ borderColor: "var(--color-line)" }}
       />
     </label>
   );
@@ -203,7 +195,6 @@ const badgeColors: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  // Converte para minúsculas para garantir correspondência com a chave do badgeColors
   const statusNormalizado = (status || "").toLowerCase().trim();
   const color = badgeColors[statusNormalizado] ?? "var(--color-ink-soft)";
 
@@ -220,8 +211,8 @@ export function StatusBadge({ status }: { status: string }) {
 export function Card({ children }: { children: ReactNode }) {
   return (
     <div
-      className="rounded-md border bg-white/60 p-5"
-      style={{ borderColor: "var(--color-line)" }}
+      className="rounded-md border p-5"
+      style={{ borderColor: "var(--color-line)", backgroundColor: "var(--color-card-bg)" }}
     >
       {children}
     </div>

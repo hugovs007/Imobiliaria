@@ -5,18 +5,17 @@
 @tailwind utilities;
 
 :root {
-  --color-paper: #f9f8f6;
-  --color-card-bg: #ffffff;
-  --color-ink: #1f2937;
-  --color-ink-soft: #6b7280;
-  --color-line: #e5e7eb;
-  --color-teal: #064e3b;
-  --color-teal-hover: #022c22;
-  --color-ok: #10b981;
-  --color-warn: #f59e0b;
-  --color-alert: #ef4444;
+  --color-paper: #f4f1ea;       /* Fundo Creme/Papel */
+  --color-card-bg: rgba(255, 255, 255, 0.7);
+  --color-ink: #222222;
+  --color-ink-soft: #666666;
+  --color-line: #d8d3c7;
+  --color-teal: #064e3b;        /* Verde Escuro */
+  --color-ok: #16a34a;
+  --color-warn: #d97706;
+  --color-alert: #dc2626;
   --font-serif: "Source Serif 4", Georgia, serif;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: "Inter", -apple-system, sans-serif;
 }
 
 body {
@@ -30,20 +29,26 @@ h1, h2, h3, .font-serif {
   font-family: var(--font-serif);
 }
 
-/* Ajuste refinado dos campos mantendo o grid do Tailwind */
+/* Estilização nativa global de formulários para não quebrar grids das páginas */
 input, select, textarea {
-  width: 100%;
-  border: 1px solid var(--color-line);
-  border-radius: 0.375rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  background-color: rgba(255, 255, 255, 0.8);
-  transition: all 0.15s ease-in-out;
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid var(--color-line) !important;
+  border-radius: 0.25rem !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.875rem !important;
+  color: var(--color-ink) !important;
+  box-sizing: border-box !important;
 }
 
 input:focus, select:focus, textarea:focus {
-  outline: none;
-  background-color: #ffffff;
-  border-color: var(--color-teal);
-  box-shadow: 0 0 0 2px rgba(6, 78, 59, 0.12);
+  outline: none !important;
+  background-color: #ffffff !important;
+  border-color: var(--color-teal) !important;
+  box-shadow: 0 0 0 2px rgba(6, 78, 59, 0.12) !important;
+}
+
+/* Botões padrões do tema */
+button[type="submit"], button.btn-primary {
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
 }

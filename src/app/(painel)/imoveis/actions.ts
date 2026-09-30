@@ -9,6 +9,9 @@ export async function criarImovel(formData: FormData) {
   const { error } = await supabase.from("imoveis").insert({
     proprietario_id: String(formData.get("proprietario_id") || "") || null,
     codigo: String(formData.get("codigo") || "") || null,
+    tipo: String(formData.get("tipo")),
+    finalidade: String(formData.get("finalidade") || ""),
+    status: String(formData.get("status") || "disponivel"),
     endereco: String(formData.get("endereco")),
     numero: String(formData.get("numero") || ""),
     complemento: String(formData.get("complemento") || ""),
@@ -16,11 +19,14 @@ export async function criarImovel(formData: FormData) {
     cidade: String(formData.get("cidade")),
     estado: String(formData.get("estado")),
     cep: String(formData.get("cep") || ""),
-    tipo: String(formData.get("tipo")),
     quartos: Number(formData.get("quartos")) || null,
-    area_m2: Number(formData.get("area_m2")) || null,
-    valor_aluguel_base: Number(formData.get("valor_aluguel_base")),
-    status: String(formData.get("status")),
+    banheiros: Number(formData.get("banheiros")) || null,
+    garagem: Number(formData.get("garagem")) || null,
+    area_util: Number(formData.get("area_util")) || null,
+    valor_venda: Number(formData.get("valor_venda")) || null,
+    valor_aluguel: Number(formData.get("valor_aluguel")) || null,
+    valor_iptu: Number(formData.get("valor_iptu")) || null,
+    propriedade: String(formData.get("propriedade") || ""),
     observacoes: String(formData.get("observacoes") || ""),
   });
 

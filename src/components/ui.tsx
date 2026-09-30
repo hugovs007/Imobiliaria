@@ -46,6 +46,7 @@ export function Field({
   required,
   step,
   placeholder,
+  className,
 }: {
   label: string;
   name: string;
@@ -54,9 +55,10 @@ export function Field({
   required?: boolean;
   step?: string;
   placeholder?: string;
+  className?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
+    <label className={`flex flex-col gap-1 text-sm ${className ?? ""}`}>
       <span className="text-ink-soft" style={{ color: "var(--color-ink-soft)" }}>
         {label}
         {required && <span style={{ color: "var(--color-alert)" }}> *</span>}
@@ -83,15 +85,17 @@ export function Select({
   options,
   defaultValue,
   required,
+  className,
 }: {
   label: string;
   name: string;
   options: { value: string; label: string }[];
   defaultValue?: string;
   required?: boolean;
+  className?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
+    <label className={`flex flex-col gap-1 text-sm ${className ?? ""}`}>
       <span style={{ color: "var(--color-ink-soft)" }}>
         {label}
         {required && <span style={{ color: "var(--color-alert)" }}> *</span>}
@@ -117,13 +121,15 @@ export function TextArea({
   label,
   name,
   defaultValue,
+  className,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
+  className?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+    <label className={`flex flex-col gap-1 text-sm sm:col-span-2 ${className ?? ""}`}>
       <span style={{ color: "var(--color-ink-soft)" }}>{label}</span>
       <textarea
         name={name}

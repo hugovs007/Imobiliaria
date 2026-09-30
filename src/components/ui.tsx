@@ -43,6 +43,7 @@ export function Field({
   name,
   type = "text",
   defaultValue,
+  value,
   required,
   step,
   placeholder,
@@ -52,6 +53,7 @@ export function Field({
   name: string;
   type?: string;
   defaultValue?: string | number;
+  value?: string | number;
   required?: boolean;
   step?: string;
   placeholder?: string;
@@ -67,6 +69,7 @@ export function Field({
         name={name}
         type={type}
         defaultValue={defaultValue}
+        value={value}
         required={required}
         step={step}
         placeholder={placeholder}
@@ -84,6 +87,7 @@ export function Select({
   name,
   options,
   defaultValue,
+  value,
   required,
   className,
 }: {
@@ -91,6 +95,7 @@ export function Select({
   name: string;
   options: { value: string; label: string }[];
   defaultValue?: string;
+  value?: string;
   required?: boolean;
   className?: string;
 }) {
@@ -103,6 +108,7 @@ export function Select({
       <select
         name={name}
         defaultValue={defaultValue}
+        value={value}
         required={required}
         className="rounded-sm border px-3 py-2 bg-white/70 focus:outline-none focus:ring-2"
         style={{ borderColor: "var(--color-line)" }}
@@ -121,11 +127,13 @@ export function TextArea({
   label,
   name,
   defaultValue,
+  value,
   className,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
+  value?: string;
   className?: string;
 }) {
   return (
@@ -134,6 +142,7 @@ export function TextArea({
       <textarea
         name={name}
         defaultValue={defaultValue}
+        value={value}
         rows={3}
         className="rounded-sm border px-3 py-2 bg-white/70 focus:outline-none focus:ring-2"
         style={{ borderColor: "var(--color-line)" }}
@@ -145,15 +154,17 @@ export function TextArea({
 export function Button({
   children,
   variant = "primary",
+  type = "submit",
 }: {
   children: ReactNode;
   variant?: "primary" | "ghost";
+  type?: "submit" | "button" | "reset";
 }) {
-  const base = "rounded-sm px-4 py-2 text-sm font-medium transition-colors";
+  const base = "rounded-sm px-4 py-2 text-sm font-medium transition-colors cursor-pointer";
   if (variant === "ghost") {
     return (
       <button
-        type="submit"
+        type={type}
         className={`${base} border`}
         style={{ borderColor: "var(--color-line)", color: "var(--color-ink)" }}
       >
@@ -163,7 +174,7 @@ export function Button({
   }
   return (
     <button
-      type="submit"
+      type={type}
       className={base}
       style={{ background: "var(--color-teal)", color: "var(--color-paper)" }}
     >
@@ -192,13 +203,16 @@ const badgeColors: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const color = badgeColors[status] ?? "var(--color-ink-soft)";
+  // Converte para minúsculas para garantir correspondência com a chave do badgeColors
+  const statusNormalizado = (status || "").toLowerCase().trim();
+  const color = badgeColors[statusNormalizado] ?? "var(--color-ink-soft)";
+
   return (
     <span
-      className="rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
+      className="rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap capitalize"
       style={{ background: `${color}1a`, color }}
     >
-      {status.replace("_", " ")}
+      {(status || "").replace("_", " ")}
     </span>
   );
 }
@@ -256,7 +270,7 @@ export function Money({ value }: { value: number | null | undefined }) {
   if (value === null || value === undefined) return <span>—</span>;
   return (
     <span>
-      {value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+      {Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
     </span>
   );
 }

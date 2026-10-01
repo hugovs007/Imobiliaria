@@ -3,7 +3,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export async function criarContrato(formData: FormData): Promise<void> {
+export type ActionState = {
+  success?: boolean;
+  error?: string | null;
+};
+
+export async function criarContrato(_prevState: ActionState | null, formData: FormData): Promise<ActionState> {
   try {
     const supabase = await createClient();
 
@@ -11,7 +16,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
     const inquilino_id = String(formData.get("inquilino_id") || "").trim();
 
     if (!imovel_id || !inquilino_id) {
-      throw new Error("Selecione um imóvel e um inquilino válidos.");
+      return { success: false, error: "Selecione um imóvel e um inquilino válidos." };
     }
 
     // 1. Busca o código do imóvel para gerar o identificador do contrato
@@ -23,16 +28,23 @@ export async function criarContrato(formData: FormData): Promise<void> {
 
     const imovelCodigo = imovel?.codigo ?? "IMV";
     const dataInicio = String(formData.get("data_inicio") || "").trim();
-    const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
-    const codigo = `${imovelCodigo}-${anoMes || "202601"}`;
+    
+    if (!dataInicio) {
+      return { success: false, error: "Informe a data de início do contrato." };
+    }
 
-    // 2. Mapeamento do Enum exato exigido pelo Postgres
+    // Garante um sufixo único para evitar violação de UNIQUE CONSTRAINT na coluna 'codigo'
+    const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
+    const sulfixoRandom = Math.floor(1000 + Math.random() * 9000);
+    const codigo = `${imovelCodigo}-${anoMes || "202610"}-${sulfixoRandom}`;
+
+    // 2. Mapeamento do Enum exato exigido pelo Postgres ('IGP-M', 'IPCA', 'Outro')
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 3. Sanitização contra NaN e valores indefinidos
+    // 3. Sanitização rigorosa contra NaN e undefined
     const valorRaw = formData.get("valor_atual") || formData.get("valor_aluguel_atual");
     const valor_atual = parseFloat(String(valorRaw || "0")) || 0;
 
@@ -49,7 +61,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
     // 4. Inserção tratada
-    const { error: insertError } = await supabase.from("contratos").insert([{
+    const payload = {
       codigo,
       imovel_id,
       inquilino_id,
@@ -63,11 +75,13 @@ export async function criarContrato(formData: FormData): Promise<void> {
       clausulas_especiais: String(formData.get("clausulas_especiais") || "").trim() || null,
       ativo: true,
       status: "ativo",
-    }]);
+    };
+
+    const { error: insertError } = await supabase.from("contratos").insert([payload]);
 
     if (insertError) {
-      console.error("Erro Supabase ao inserir contrato:", insertError.message);
-      throw new Error(insertError.message);
+      console.error("Erro do Supabase ao inserir contrato:", insertError);
+      return { success: false, error: `Erro no Supabase (${insertError.code}): ${insertError.message}` };
     }
 
     // 5. Marca o imóvel como alugado
@@ -76,16 +90,18 @@ export async function criarContrato(formData: FormData): Promise<void> {
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
     revalidatePath("/");
+
+    return { success: true, error: null };
   } catch (err: any) {
     console.error("Exceção capturada em criarContrato:", err?.message || err);
-    throw new Error(err?.message || "Ocorreu um erro interno ao cadastrar o contrato.");
+    return { success: false, error: err?.message || "Ocorreu um erro interno ao cadastrar o contrato." };
   }
 }
 
 export async function gerarReajustesPendentes() {
   const supabase = await createClient();
   const { error } = await supabase.rpc("gerar_reajustes_pendentes");
-  if (error) throw new Error(error.message);
+  if (error) console.error("Erro em gerarReajustesPendentes:", error.message);
   revalidatePath("/contratos");
 }
 
@@ -93,7 +109,7 @@ export async function aplicarReajuste(formData: FormData) {
   const supabase = await createClient();
   const id = String(formData.get("id"));
   const { error } = await supabase.rpc("aplicar_reajuste", { p_reajuste_id: id });
-  if (error) throw new Error(error.message);
+  if (error) console.error("Erro em aplicarReajuste:", error.message);
   revalidatePath("/contratos");
 }
 

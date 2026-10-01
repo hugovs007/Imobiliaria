@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { Button, Card, Field, Money, PageHeader, Select, StatusBadge, Table, TextArea } from "@/components/ui";
+import { Button, Card, Money, PageHeader, StatusBadge, Table } from "@/components/ui";
 import { RecordEditor } from "@/components/record-editor";
 import { CloseContractForm } from "./close-contract-form";
 import { RenewalForm } from "./renewal-form";
-import { aplicarReajuste, criarContrato, gerarReajustesPendentes } from "./actions";
+import { FormCriarContrato } from "./form-criar-contrato";
+import { aplicarReajuste, gerarReajustesPendentes } from "./actions";
 
 function dataSeguinte(data: string | null) {
   if (!data) return new Date().toISOString().slice(0, 10);
@@ -46,7 +47,6 @@ function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
 export default async function ContratosPage() {
   const supabase = await createClient();
 
-  // 1. Busca sincronizada de entidades
   const [resContratos, resImoveis, resInquilinos, resReajustes] = await Promise.all([
     supabase
       .from("contratos")
@@ -77,7 +77,6 @@ export default async function ContratosPage() {
   const listaInquilinos = resInquilinos.data ?? [];
   const listaReajustes = resReajustes.data ?? [];
 
-  // Filtra imóveis disponíveis ou exibe todos como fallback
   const imoveisDisponiveis = todosImoveis.filter(
     (i) => !i.status || i.status.toLowerCase() === "disponivel"
   );
@@ -95,65 +94,10 @@ export default async function ContratosPage() {
       />
 
       <Card>
-        <form action={criarContrato} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Select
-            label="Imóvel (disponíveis)"
-            name="imovel_id"
-            required
-            options={[
-              { value: "", label: "— selecione um imóvel —" },
-              ...imoveisParaExibir.map((i) => {
-                const rotuloEndereco = [
-                  i.codigo,
-                  i.logradouro || i.endereco,
-                  i.numero,
-                  i.cidade ? `${i.cidade}/${i.uf || i.estado}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" - ");
-
-                return {
-                  value: i.id,
-                  label: rotuloEndereco || `Imóvel ID: ${i.id.slice(0, 8)}`,
-                };
-              }),
-            ]}
-          />
-
-          <Select
-            label="Inquilino"
-            name="inquilino_id"
-            required
-            options={[
-              { value: "", label: "— selecione um inquilino —" },
-              ...listaInquilinos.map((i) => ({ value: i.id, label: i.nome })),
-            ]}
-          />
-
-          <Field label="Data de início" name="data_inicio" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
-          <Field label="Data de fim (opcional)" name="data_fim" type="date" />
-          <Field label="Dia de vencimento (1-31)" name="dia_vencimento" type="number" required defaultValue={10} />
-          <Field label="Valor do aluguel (R$)" name="valor_atual" type="number" step="0.01" required />
-
-          <Select
-            label="Índice de reajuste"
-            name="indice_reajuste"
-            defaultValue="IGP-M"
-            options={[
-              { value: "IGP-M", label: "IGP-M" },
-              { value: "IPCA", label: "IPCA" },
-              { value: "Outro", label: "Outro (definir em cláusula)" },
-            ]}
-          />
-
-          <Field label="Periodicidade do reajuste (meses)" name="periodicidade_reajuste_meses" type="number" defaultValue={12} />
-          <Field label="Caução/depósito (R$)" name="valor_caucao" type="number" step="0.01" />
-          <TextArea label="Cláusulas especiais" name="clausulas_especiais" />
-
-          <div className="sm:col-span-2">
-            <Button>Cadastrar contrato</Button>
-          </div>
-        </form>
+        <FormCriarContrato 
+          imoveisParaExibir={imoveisParaExibir} 
+          listaInquilinos={listaInquilinos} 
+        />
       </Card>
 
       <div className="mt-10 flex items-center justify-between">

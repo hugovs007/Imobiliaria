@@ -19,7 +19,7 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: "Selecione um imóvel e um inquilino válidos." };
     }
 
-    // 1. Busca o código do imóvel para gerar o identificador do contrato
+    // 1. Busca dados do imóvel
     const { data: imovel } = await supabase
       .from("imoveis")
       .select("codigo")
@@ -37,13 +37,13 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
     const sulfixoRandom = Math.floor(1000 + Math.random() * 9000);
     const codigoGerado = `${imovelCodigo}-${anoMes || "202610"}-${sulfixoRandom}`;
 
-    // 2. Mapeamento do Enum exato exigido pelo Postgres
+    // 2. Mapeamento do Enum de reajuste
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 3. Sanitização rigorosa contra NaN e undefined
+    // 3. Sanitização dos dados numéricos
     const valorRaw = formData.get("valor_atual") || formData.get("valor_aluguel_atual");
     const valor_atual = parseFloat(String(valorRaw || "0")) || 0;
 
@@ -59,9 +59,8 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 4. Mapeamento usando 'codigo_contrato' conforme o schema original do banco
+    // 4. Montagem base do payload
     const payload: Record<string, any> = {
-      codigo_contrato: codigoGerado,
       imovel_id,
       inquilino_id,
       data_inicio: dataInicio,
@@ -76,15 +75,23 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       status: "ativo",
     };
 
-    // Tenta primeiro a inserção com codigo_contrato
+    // Tenta primeiro sem coluna de código (caso seja autogerada ou trigger)
     let { error: insertError } = await supabase.from("contratos").insert([payload]);
 
-    // Fallback: se o banco esperar a coluna 'codigo' em vez de 'codigo_contrato'
-    if (insertError && insertError.code === "PGRST204" && insertError.message.includes("codigo_contrato")) {
-      delete payload.codigo_contrato;
+    // Se exigir código, testa as duas nomenclaturas possíveis
+    if (insertError && insertError.code === "PGRST204") {
+      // Tentativa 1: 'codigo'
       payload.codigo = codigoGerado;
-      const resFallback = await supabase.from("contratos").insert([payload]);
-      insertError = resFallback.error;
+      let res = await supabase.from("contratos").insert([payload]);
+      
+      if (res.error && res.error.code === "PGRST204") {
+        // Tentativa 2: 'codigo_contrato'
+        delete payload.codigo;
+        payload.codigo_contrato = codigoGerado;
+        res = await supabase.from("contratos").insert([payload]);
+      }
+
+      insertError = res.error;
     }
 
     if (insertError) {
@@ -92,7 +99,7 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: `Erro no Supabase (${insertError.code}): ${insertError.message}` };
     }
 
-    // 5. Marca o imóvel como alugado
+    // 5. Atualiza o status do imóvel
     await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
 
     revalidatePath("/contratos");

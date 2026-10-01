@@ -353,8 +353,8 @@ export default async function PagamentosPage() {
                       id={String(p.id)}
                       fields={[
                         { name: "competencia", label: "Competência", value: p.competencia ? p.competencia.slice(0, 7) : "", type: "month", required: true },
-                        { name: "valor_base", label: "Valor base (R$)", value: valorBase, type: "number", step="0.01", required: true },
-                        { name: "valor_pago", label: "Valor pago (R$)", value: valorPago, type: "number", step="0.01" },
+                        { name: "valor_base", label: "Valor base (R$)", value: valorBase, type: "number", step: "0.01", required: true },
+                        { name: "valor_pago", label: "Valor pago (R$)", value: valorPago, type: "number", step: "0.01" },
                         { name: "data_vencimento", label: "Vencimento", value: p.data_vencimento, type: "date", required: true },
                         { name: "data_pagamento", label: "Data do pagamento", value: p.data_pagamento, type: "date" },
                         { name: "observacoes", label: "Observações", value: p.observacoes, kind: "textarea" },

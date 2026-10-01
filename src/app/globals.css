@@ -28,6 +28,24 @@ h1, h2, h3, .font-serif {
   font-family: var(--font-serif);
 }
 
+/* Força os campos de entrada a ficarem SEMPRE visíveis mesmo sem foco */
+input, select, textarea {
+  background-color: #ffffff !important;
+  border: 1px solid var(--color-line) !important;
+  border-radius: 0.375rem !important;
+  padding: 0.5rem 0.75rem !important;
+  color: var(--color-ink) !important;
+  display: block !important;
+  width: 100% !important;
+  opacity: 1 !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none !important;
+  border-color: var(--color-teal) !important;
+  box-shadow: 0 0 0 2px rgba(47, 74, 67, 0.2) !important;
+}
+
 ::selection {
   background: var(--color-brass-soft);
   color: var(--color-ink);

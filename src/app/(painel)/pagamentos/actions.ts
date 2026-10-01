@@ -10,11 +10,17 @@ import { redirect } from "next/navigation";
  */
 export async function lancarCobranca(formData: FormData) {
   const supabase = await createClient();
-  const competencia = String(formData.get("competencia")) + "-01";
-  const contratoId = String(formData.get("contrato_id"));
-  const valorDevido = Number(formData.get("valor_devido"));
-  const dataVencimento = String(formData.get("data_vencimento"));
+  const competenciaRaw = String(formData.get("competencia") || "").trim(); // Esperado YYYY-MM ou YYYY-MM-DD
+  const competencia = competenciaRaw.length === 7 ? `${competenciaRaw}-01` : competenciaRaw;
+  const contratoId = String(formData.get("contrato_id") || "").trim();
+  const valorBase = parseFloat(String(formData.get("valor_devido") || formData.get("valor_base") || "0")) || 0;
+  const dataVencimento = String(formData.get("data_vencimento") || "").trim();
+
   try {
+    if (!contratoId || !competencia || !dataVencimento) {
+      throw new Error("Preencha todos os campos obrigatórios do lançamento.");
+    }
+
     // Verifica se já existe pagamento para este contrato e competência
     const { data: existing, error: existingError } = await supabase
       .from("pagamentos")
@@ -22,28 +28,32 @@ export async function lancarCobranca(formData: FormData) {
       .eq("contrato_id", contratoId)
       .eq("competencia", competencia)
       .maybeSingle();
+
     if (existingError) {
       throw new Error(`Erro ao verificar pagamento existente: ${existingError.message}`);
     }
+
     if (existing) {
       throw new Error("Pagamento já registrado para este contrato e competência.");
     }
+
     const { error } = await supabase.from("pagamentos").insert({
       contrato_id: contratoId,
       competencia,
-      valor_devido: valorDevido,
+      valor_base: valorBase,
       data_vencimento: dataVencimento,
       status: "pendente",
     });
+
     if (error) {
       if (error.message.includes("duplicate key") || error.code === "23505") {
         throw new Error("Já existe um pagamento registrado para este contrato e competência.");
       }
       throw new Error(error.message);
     }
+
     revalidatePath("/pagamentos");
   } catch (err: any) {
-    // Redirect back with error message
     redirect(`/pagamentos?error=${encodeURIComponent(err.message)}`);
   }
 }
@@ -55,53 +65,49 @@ export async function lancarCobranca(formData: FormData) {
 export async function lancarCobrancasEmLote(formData: FormData) {
   const supabase = await createClient();
 
-  const competencia = String(formData.get("competencia")) + "-01";
-  const diaVencimento = Number(formData.get("dia_vencimento")) || 10;
+  const competenciaRaw = String(formData.get("competencia") || "").trim();
+  const competencia = competenciaRaw.length === 7 ? `${competenciaRaw}-01` : competenciaRaw;
 
-  // Busca todos os contratos ativos/renovados que não têm sucessor
+  if (!competenciaRaw) {
+    throw new Error("Selecione um mês de referência válido.");
+  }
+
+  // Busca todos os contratos ativos
   const { data: contratos, error: contratosError } = await supabase
     .from("contratos")
-    .select("id, valor_aluguel_atual, dia_vencimento, data_inicio, data_fim, status, contrato_anterior_id")
-    .in("status", ["ativo", "renovado"]);
+    .select("id, valor_aluguel, dia_vencimento, ativo")
+    .eq("ativo", true);
 
   if (contratosError) {
     throw new Error(`Erro ao buscar contratos: ${contratosError.message}`);
   }
 
-  // Filtra contratos vigentes (sem sucessor)
-  const contratosComSucessor = new Set(
-    (contratos ?? []).flatMap((c) => c.contrato_anterior_id ? [c.contrato_anterior_id] : [])
-  );
-  const contratosVigentes = (contratos ?? []).filter(
-    (c) => ["ativo", "renovado"].includes(c.status) && !contratosComSucessor.has(c.id)
-  );
-
-  if (contratosVigentes.length === 0) {
-    throw new Error("Nenhum contrato vigente encontrado para gerar cobranças.");
+  if (!contratos || contratos.length === 0) {
+    throw new Error("Nenhum contrato ativo encontrado para gerar cobranças.");
   }
 
-  // Calcula a data de vencimento para cada contrato
-  const competenciaDate = new Date(competencia);
-  const ano = competenciaDate.getFullYear();
-  const mes = competenciaDate.getMonth();
+  const [anoStr, mesStr] = competencia.split("-");
+  const ano = parseInt(anoStr, 10);
+  const mes = parseInt(mesStr, 10) - 1; // Mês base 0 no JS
 
-  const pagamentosParaInserir = contratosVigentes.map((contrato) => {
-    const vencimento = new Date(ano, mes, contrato.dia_vencimento);
-    // Se o dia não existe no mês (ex: 31 em fevereiro), usa o último dia do mês
-    if (vencimento.getMonth() !== mes) {
-      vencimento.setDate(0); // último dia do mês anterior
-    }
+  const pagamentosParaInserir = contratos.map((contrato) => {
+    const diaVenc = Math.min(Math.max(contrato.dia_vencimento || 10, 1), 31);
+    
+    // Trata o último dia de meses mais curtos (ex: fevereiro)
+    const ultimoDiaDoMes = new Date(ano, mes + 1, 0).getDate();
+    const diaEfetivo = Math.min(diaVenc, ultimoDiaDoMes);
+    const vencimentoStr = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(diaEfetivo).padStart(2, "0")}`;
 
     return {
       contrato_id: contrato.id,
       competencia,
-      valor_devido: contrato.valor_aluguel_atual,
-      data_vencimento: vencimento.toISOString().split("T")[0],
+      valor_base: contrato.valor_aluguel || 0,
+      data_vencimento: vencimentoStr,
       status: "pendente" as const,
     };
   });
 
-  // Insere em lote, ignorando duplicatas
+  // Insere em lote, ignorando duplicatas existentes
   const { error } = await supabase
     .from("pagamentos")
     .upsert(pagamentosParaInserir, { onConflict: "contrato_id,competencia", ignoreDuplicates: true });
@@ -115,19 +121,25 @@ export async function lancarCobrancasEmLote(formData: FormData) {
 
 /**
  * Registra o pagamento de uma cobrança (baixa).
- * Atualiza valor_pago, data_pagamento, forma_pagamento e status para "pago".
+ * Atualiza valor_pago, data_pagamento, desconto, multa e status para "pago".
  */
 export async function registrarPagamento(formData: FormData) {
   const supabase = await createClient();
-  const id = String(formData.get("id"));
-  const valorPago = Number(formData.get("valor_pago"));
-  const dataPagamento = String(formData.get("data_pagamento"));
-  const formaPagamento = String(formData.get("forma_pagamento") || "");
+  const id = String(formData.get("id") || formData.get("pagamento_id") || "");
+  const valorPago = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
+  const valorDesconto = parseFloat(String(formData.get("valor_desconto") || "0")) || 0;
+  const valorMultaJuros = parseFloat(String(formData.get("valor_multa_juros") || "0")) || 0;
+  const dataPagamento = String(formData.get("data_pagamento") || new Date().toISOString().slice(0, 10));
+  const observacoes = String(formData.get("observacoes") || formData.get("forma_pagamento") || "").trim() || null;
+
+  if (!id) {
+    throw new Error("ID do pagamento não informado.");
+  }
 
   // Busca o pagamento atual para validar
   const { data: pagamentoData, error: fetchError } = await supabase
     .from("pagamentos")
-    .select("valor_devido, valor_pago, status")
+    .select("valor_base, valor_pago, status")
     .eq("id", id)
     .single();
 
@@ -135,29 +147,29 @@ export async function registrarPagamento(formData: FormData) {
     throw new Error(`Erro ao buscar pagamento: ${fetchError.message}`);
   }
 
-  const valorDevido = pagamentoData?.valor_devido ?? 0;
+  const valorBase = pagamentoData?.valor_base ?? 0;
   const valorJaPago = pagamentoData?.valor_pago ?? 0;
-  const totalPago = valorJaPago + valorPago;
+  const totalPagoEfetivo = valorJaPago + valorPago;
 
-  if (totalPago > valorDevido + 0.01) {
-    throw new Error(`Valor excede o devido. Devido: ${valorDevido.toFixed(2)}, Já pago: ${valorJaPago.toFixed(2)}, Tentativa: ${valorPago.toFixed(2)}`);
-  }
-
-  const novoStatus = totalPago >= valorDevido - 0.01 ? "pago" : "pendente";
+  const novoStatus = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01) ? "pago" : "pendente";
 
   const { error } = await supabase
     .from("pagamentos")
     .update({
-      valor_pago: totalPago,
+      valor_pago: totalPagoEfetivo,
+      valor_desconto: valorDesconto,
+      valor_multa_juros: valorMultaJuros,
       data_pagamento: dataPagamento,
-      forma_pagamento: formaPagamento,
+      observacoes: observacoes,
       status: novoStatus,
+      updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
   if (error) throw new Error(error.message);
 
   revalidatePath("/pagamentos");
+  revalidatePath("/financeiro");
 }
 
 /**
@@ -169,7 +181,7 @@ export async function marcarIsento(formData: FormData) {
 
   const { error } = await supabase
     .from("pagamentos")
-    .update({ status: "isento", valor_pago: 0 })
+    .update({ status: "isento", valor_pago: 0, updated_at: new Date().toISOString() })
     .eq("id", id);
 
   if (error) throw new Error(error.message);
@@ -187,7 +199,7 @@ export async function atualizarStatusPagamento(formData: FormData) {
 
   const { error } = await supabase
     .from("pagamentos")
-    .update({ status })
+    .update({ status, updated_at: new Date().toISOString() })
     .eq("id", id);
 
   if (error) throw new Error(error.message);
@@ -225,11 +237,11 @@ export async function excluirPagamento(formData: FormData) {
  */
 export async function atualizarAtrasados() {
   const supabase = await createClient();
-  const hoje = new Date().toISOString().split("T")[0];
+  const hoje = new Date().toISOString().slice(0, 10);
 
   const { error } = await supabase
     .from("pagamentos")
-    .update({ status: "atrasado" })
+    .update({ status: "atrasado", updated_at: new Date().toISOString() })
     .eq("status", "pendente")
     .lt("data_vencimento", hoje);
 

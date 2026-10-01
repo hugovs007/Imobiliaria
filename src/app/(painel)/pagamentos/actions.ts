@@ -126,7 +126,7 @@ export async function lancarCobrancasEmLote(formData: FormData): Promise<void> {
 }
 
 /**
- * Registra a baixa de entrada do pagamento, grava o recibo individual e atualiza o saldo restante.
+ * PDV: Registra o recebimento de uma entrada financeira, acumula os valores e gera o comprovante de recibo.
  */
 export async function registrarPagamento(formData: FormData): Promise<void> {
   try {
@@ -138,12 +138,11 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
     const valorEntrada = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
     if (valorEntrada <= 0) return;
 
-    const valorDesconto = parseFloat(String(formData.get("valor_desconto") || "0")) || 0;
-    const valorMultaJuros = parseFloat(String(formData.get("valor_multa_juros") || "0")) || 0;
+    const formaPagamento = String(formData.get("forma_pagamento") || "PIX / Dinheiro").trim();
     const dataPagamento = String(formData.get("data_pagamento") || new Date().toISOString().slice(0, 10)).trim();
     const observacaoNova = String(formData.get("observacoes") || "").trim();
 
-    // Busca o lançamento atual do banco
+    // Busca o lançamento da mensalidade no banco
     const { data: pagamentoAtual, error: fetchError } = await supabase
       .from("pagamentos")
       .select("valor_base, valor_pago, data_vencimento, observacoes")
@@ -151,23 +150,26 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
       .single();
 
     if (fetchError || !pagamentoAtual) {
-      console.error("Erro ao buscar pagamento para baixa:", fetchError?.message);
+      console.error("Erro ao buscar lançamento para PDV:", fetchError?.message);
       return;
     }
 
     const valorBase = Number(pagamentoAtual.valor_base || 0);
     const valorJaPagoAnterior = Number(pagamentoAtual.valor_pago || 0);
     const totalPagoEfetivo = valorJaPagoAnterior + valorEntrada;
+    const saldoRestanteAtual = Math.max(0, valorBase - totalPagoEfetivo);
 
     const dataFormatada = new Date(dataPagamento + "T00:00:00").toLocaleDateString("pt-BR");
-    const registroRecibo = `[Recibo de R$ ${valorEntrada.toFixed(2)} em ${dataFormatada}]${
-      observacaoNova ? ` — ${observacaoNova}` : ""
+    
+    // Montagem do comprovante PDV armazenado
+    const reciboPDV = `RECIBO PDV [${dataFormatada}] | Entrada: R$ ${valorEntrada.toFixed(2)} | Forma: ${formaPagamento} | Saldo Restante: R$ ${saldoRestanteAtual.toFixed(2)}${
+      observacaoNova ? ` | Obs: ${observacaoNova}` : ""
     }`;
 
-    const historicoAtual = pagamentoAtual.observacoes ? `${pagamentoAtual.observacoes}\n` : "";
-    const historicoAtualizado = `${historicoAtual}${registroRecibo}`;
+    const historicoAnterior = pagamentoAtual.observacoes ? `${pagamentoAtual.observacoes}\n` : "";
+    const historicoAtualizado = `${historicoAnterior}${reciboPDV}`;
 
-    const quitado = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01);
+    const quitado = totalPagoEfetivo >= (valorBase - 0.01);
     const hoje = new Date().toISOString().slice(0, 10);
     const vencido = pagamentoAtual.data_vencimento < hoje;
 
@@ -177,8 +179,6 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
       .from("pagamentos")
       .update({
         valor_pago: totalPagoEfetivo,
-        valor_desconto: valorDesconto,
-        valor_multa_juros: valorMultaJuros,
         data_pagamento: dataPagamento,
         observacoes: historicoAtualizado,
         status: novoStatus,
@@ -187,21 +187,21 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
       .eq("id", id);
 
     if (updateError) {
-      console.error("Erro ao registrar entrada:", updateError.message);
+      console.error("Erro ao processar recebimento no PDV:", updateError.message);
       return;
     }
 
     revalidatePath("/pagamentos");
-    revalidatePath("/recibos");
+    revalidatePath(`/recibos/${id}`);
     revalidatePath("/financeiro");
     revalidatePath("/");
   } catch (err: any) {
-    console.error("Exceção em registrarPagamento:", err?.message || err);
+    console.error("Exceção no PDV registrarPagamento:", err?.message || err);
   }
 }
 
 /**
- * Marca um pagamento como isento.
+ * Isentar parcela
  */
 export async function marcarIsento(formData: FormData): Promise<void> {
   try {
@@ -225,31 +225,7 @@ export async function marcarIsento(formData: FormData): Promise<void> {
 }
 
 /**
- * Atualiza o status de um pagamento.
- */
-export async function atualizarStatusPagamento(formData: FormData): Promise<void> {
-  try {
-    const supabase = await createClient();
-    const id = String(formData.get("id") || "").trim();
-    const status = String(formData.get("status") || "").trim();
-
-    if (!id || !status) return;
-
-    const { error } = await supabase
-      .from("pagamentos")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (error) return;
-
-    revalidatePath("/pagamentos");
-  } catch (err: any) {
-    console.error("Exceção em atualizarStatusPagamento:", err?.message || err);
-  }
-}
-
-/**
- * Exclui um pagamento pendente ou isento.
+ * Excluir cobrança
  */
 export async function excluirPagamento(formData: FormData): Promise<void> {
   try {
@@ -277,7 +253,7 @@ export async function excluirPagamento(formData: FormData): Promise<void> {
 }
 
 /**
- * Atualiza pagamentos pendentes com vencimento ultrapassado para "atrasado".
+ * Atualizar atrasados
  */
 export async function atualizarAtrasados(): Promise<void> {
   try {

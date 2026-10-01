@@ -352,7 +352,7 @@ export default async function PagamentosPage() {
 
                     {/* Excluir Lançamento */}
                     {isPendente && (
-                      <form action={excluirPagamento} className="inline" onSubmit={(e) => { if (!confirm("Excluir este pagamento?")) e.preventDefault(); }}>
+                      <form action={excluirPagamento} className="inline">
                         <input type="hidden" name="id" value={String(p.id)} />
                         <Button variant="ghost">Excluir</Button>
                       </form>

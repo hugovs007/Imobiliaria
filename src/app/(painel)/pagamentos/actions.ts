@@ -3,15 +3,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export type ActionState = {
-  success?: boolean;
-  error?: string | null;
-};
-
 /**
  * Lança a cobrança mensal para um contrato específico.
  */
-export async function lancarCobranca(formData: FormData): Promise<ActionState> {
+export async function lancarCobranca(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
 
@@ -21,29 +16,19 @@ export async function lancarCobranca(formData: FormData): Promise<ActionState> {
     const valorBase = parseFloat(String(formData.get("valor_base") || formData.get("valor_devido") || "0")) || 0;
     const dataVencimento = String(formData.get("data_vencimento") || "").trim();
 
-    if (!contratoId || !competencia || !dataVencimento) {
-      return { success: false, error: "Preencha todos os campos obrigatórios." };
+    if (!contratoId || !competencia || !dataVencimento || valorBase <= 0) {
+      return;
     }
 
-    if (valorBase <= 0) {
-      return { success: false, error: "Informe um valor devido válido." };
-    }
-
-    // Verifica se já existe cobrança para esta competência e contrato
-    const { data: existing, error: existingError } = await supabase
+    const { data: existing } = await supabase
       .from("pagamentos")
       .select("id")
       .eq("contrato_id", contratoId)
       .eq("competencia", competencia)
       .maybeSingle();
 
-    if (existingError) {
-      console.error("Erro ao verificar pagamento existente:", existingError);
-      return { success: false, error: existingError.message };
-    }
-
     if (existing) {
-      return { success: false, error: "Já existe uma cobrança lançada para esta competência." };
+      return;
     }
 
     const { error: insertError } = await supabase.from("pagamentos").insert({
@@ -55,48 +40,36 @@ export async function lancarCobranca(formData: FormData): Promise<ActionState> {
     });
 
     if (insertError) {
-      console.error("Erro ao inserir cobrança avulsa:", insertError);
-      return { success: false, error: insertError.message };
+      console.error("Erro ao inserir cobrança avulsa:", insertError.message);
+      return;
     }
 
     revalidatePath("/pagamentos");
     revalidatePath("/financeiro");
     revalidatePath("/");
-    return { success: true, error: null };
   } catch (err: any) {
-    console.error("Exceção capturada em lancarCobranca:", err);
-    return { success: false, error: err?.message || "Ocorreu um erro ao lançar a cobrança." };
+    console.error("Exceção em lancarCobranca:", err?.message || err);
   }
 }
 
 /**
  * Lança cobranças em lote para todos os contratos ativos na competência selecionada.
  */
-export async function lancarCobrancasEmLote(formData: FormData): Promise<ActionState> {
+export async function lancarCobrancasEmLote(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
 
     const competenciaRaw = String(formData.get("competencia") || "").trim();
-    if (!competenciaRaw) {
-      return { success: false, error: "Selecione um mês de referência válido." };
-    }
+    if (!competenciaRaw) return;
 
     const competencia = competenciaRaw.length === 7 ? `${competenciaRaw}-01` : competenciaRaw;
 
-    // Busca todos os contratos ativos
     const { data: contratos, error: contratosError } = await supabase
       .from("contratos")
       .select("id, valor_aluguel, dia_vencimento, ativo")
       .eq("ativo", true);
 
-    if (contratosError) {
-      console.error("Erro ao buscar contratos ativos:", contratosError);
-      return { success: false, error: contratosError.message };
-    }
-
-    if (!contratos || contratos.length === 0) {
-      return { success: false, error: "Nenhum contrato ativo encontrado para gerar cobranças." };
-    }
+    if (contratosError || !contratos || contratos.length === 0) return;
 
     const [anoStr, mesStr] = competenciaRaw.split("-");
     const ano = parseInt(anoStr, 10);
@@ -122,36 +95,30 @@ export async function lancarCobrancasEmLote(formData: FormData): Promise<ActionS
       .upsert(pagamentosParaInserir, { onConflict: "contrato_id,competencia", ignoreDuplicates: true });
 
     if (upsertError) {
-      console.error("Erro no upsert em lote:", upsertError);
-      return { success: false, error: upsertError.message };
+      console.error("Erro no upsert em lote:", upsertError.message);
+      return;
     }
 
     revalidatePath("/pagamentos");
     revalidatePath("/financeiro");
     revalidatePath("/");
-    return { success: true, error: null };
   } catch (err: any) {
-    console.error("Exceção capturada em lancarCobrancasEmLote:", err);
-    return { success: false, error: err?.message || "Ocorreu um erro ao gerar cobranças em lote." };
+    console.error("Exceção em lancarCobrancasEmLote:", err?.message || err);
   }
 }
 
 /**
  * Registra a baixa de um pagamento.
  */
-export async function registrarPagamento(formData: FormData): Promise<ActionState> {
+export async function registrarPagamento(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
 
     const id = String(formData.get("id") || formData.get("pagamento_id") || "").trim();
-    if (!id) {
-      return { success: false, error: "ID do pagamento não informado." };
-    }
+    if (!id) return;
 
     const valorPago = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
-    if (valorPago <= 0) {
-      return { success: false, error: "Informe um valor pago válido." };
-    }
+    if (valorPago <= 0) return;
 
     const valorDesconto = parseFloat(String(formData.get("valor_desconto") || "0")) || 0;
     const valorMultaJuros = parseFloat(String(formData.get("valor_multa_juros") || "0")) || 0;
@@ -164,10 +131,7 @@ export async function registrarPagamento(formData: FormData): Promise<ActionStat
       .eq("id", id)
       .single();
 
-    if (fetchError) {
-      console.error("Erro ao buscar pagamento para baixa:", fetchError);
-      return { success: false, error: fetchError.message };
-    }
+    if (fetchError) return;
 
     const valorBase = pagamentoData?.valor_base ?? 0;
     const valorJaPago = pagamentoData?.valor_pago ?? 0;
@@ -189,79 +153,75 @@ export async function registrarPagamento(formData: FormData): Promise<ActionStat
       .eq("id", id);
 
     if (updateError) {
-      console.error("Erro ao atualizar pagamento:", updateError);
-      return { success: false, error: updateError.message };
+      console.error("Erro ao atualizar pagamento:", updateError.message);
+      return;
     }
 
     revalidatePath("/pagamentos");
     revalidatePath("/financeiro");
     revalidatePath("/");
-    return { success: true, error: null };
   } catch (err: any) {
-    console.error("Exceção capturada em registrarPagamento:", err);
-    return { success: false, error: err?.message || "Ocorreu um erro ao registrar o pagamento." };
+    console.error("Exceção em registrarPagamento:", err?.message || err);
   }
 }
 
 /**
  * Marca um pagamento como isento.
  */
-export async function marcarIsento(formData: FormData): Promise<ActionState> {
+export async function marcarIsento(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
     const id = String(formData.get("id") || "").trim();
 
-    if (!id) return { success: false, error: "ID não informado." };
+    if (!id) return;
 
     const { error } = await supabase
       .from("pagamentos")
       .update({ status: "isento", valor_pago: 0, updated_at: new Date().toISOString() })
       .eq("id", id);
 
-    if (error) return { success: false, error: error.message };
+    if (error) return;
 
     revalidatePath("/pagamentos");
     revalidatePath("/financeiro");
-    return { success: true, error: null };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Ocorreu um erro ao isentar pagamento." };
+    console.error("Exceção em marcarIsento:", err?.message || err);
   }
 }
 
 /**
  * Atualiza o status de um pagamento.
  */
-export async function atualizarStatusPagamento(formData: FormData): Promise<ActionState> {
+export async function atualizarStatusPagamento(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
     const id = String(formData.get("id") || "").trim();
     const status = String(formData.get("status") || "").trim();
 
-    if (!id || !status) return { success: false, error: "Dados inválidos." };
+    if (!id || !status) return;
 
     const { error } = await supabase
       .from("pagamentos")
       .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id);
 
-    if (error) return { success: false, error: error.message };
+    if (error) return;
 
     revalidatePath("/pagamentos");
-    return { success: true, error: null };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Ocorreu um erro ao atualizar status." };
+    console.error("Exceção em atualizarStatusPagamento:", err?.message || err);
   }
 }
 
 /**
  * Exclui um pagamento pendente ou isento.
  */
-export async function excluirPagamento(formData: FormData): Promise<ActionState> {
+export async function excluirPagamento(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
     const id = String(formData.get("id") || "").trim();
 
-    if (!id) return { success: false, error: "ID não informado." };
+    if (!id) return;
 
     const { data: pagamento, error: fetchError } = await supabase
       .from("pagamentos")
@@ -269,27 +229,22 @@ export async function excluirPagamento(formData: FormData): Promise<ActionState>
       .eq("id", id)
       .single();
 
-    if (fetchError) return { success: false, error: fetchError.message };
-
-    if (pagamento?.status === "pago") {
-      return { success: false, error: "Não é possível excluir um pagamento já quitado." };
-    }
+    if (fetchError || pagamento?.status === "pago") return;
 
     const { error } = await supabase.from("pagamentos").delete().eq("id", id);
-    if (error) return { success: false, error: error.message };
+    if (error) return;
 
     revalidatePath("/pagamentos");
     revalidatePath("/financeiro");
-    return { success: true, error: null };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Ocorreu um erro ao excluir pagamento." };
+    console.error("Exceção em excluirPagamento:", err?.message || err);
   }
 }
 
 /**
  * Atualiza pagamentos pendentes com vencimento ultrapassado para "atrasado".
  */
-export async function atualizarAtrasados(): Promise<ActionState> {
+export async function atualizarAtrasados(): Promise<void> {
   try {
     const supabase = await createClient();
     const hoje = new Date().toISOString().slice(0, 10);
@@ -300,11 +255,10 @@ export async function atualizarAtrasados(): Promise<ActionState> {
       .eq("status", "pendente")
       .lt("data_vencimento", hoje);
 
-    if (error) return { success: false, error: error.message };
+    if (error) return;
 
     revalidatePath("/pagamentos");
-    return { success: true, error: null };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Ocorreu um erro ao atualizar atrasados." };
+    console.error("Exceção em atualizarAtrasados:", err?.message || err);
   }
 }

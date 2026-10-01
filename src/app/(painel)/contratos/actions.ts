@@ -4,58 +4,78 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function criarContrato(formData: FormData) {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  const imovel_id = String(formData.get("imovel_id"));
-  const valor = Number(formData.get("valor_aluguel_atual"));
+    const imovel_id = String(formData.get("imovel_id") || "").trim();
+    const inquilino_id = String(formData.get("inquilino_id") || "").trim();
 
-  // Busca o código do imóvel para gerar o código do contrato
-  const { data: imovel } = await supabase
-    .from("imoveis")
-    .select("codigo")
-    .eq("id", imovel_id)
-    .single();
+    if (!imovel_id || !inquilino_id) {
+      throw new Error("Selecione um imóvel e um inquilino válidos.");
+    }
 
-  const imovelCodigo = imovel?.codigo ?? "IMV";
-  const dataInicio = String(formData.get("data_inicio"));
-  const anoMes = dataInicio.replace("-", "").slice(0, 6);
-  const codigoContrato = `${imovelCodigo}-${anoMes}`;
+    // Busca o código do imóvel para gerar o código do contrato
+    const { data: imovel } = await supabase
+      .from("imoveis")
+      .select("codigo")
+      .eq("id", imovel_id)
+      .single();
 
-  const { data: contratosAtivos, error: contratosError } = await supabase
-    .from("contratos")
-    .select("id, status, contrato_anterior_id")
-    .eq("imovel_id", imovel_id);
-  if (contratosError) throw new Error(contratosError.message);
+    const imovelCodigo = imovel?.codigo ?? "IMV";
+    const dataInicio = String(formData.get("data_inicio") || "").trim();
+    const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
+    const codigoContrato = `${imovelCodigo}-${anoMes || "202601"}`;
 
-  const contratosComSucessor = new Set(
-    (contratosAtivos ?? []).flatMap((contrato) => contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : [])
-  );
-  if ((contratosAtivos ?? []).some((contrato) => ["ativo", "renovado"].includes(contrato.status) && !contratosComSucessor.has(contrato.id))) {
-    throw new Error("Este imóvel já possui um contrato vigente.");
+    // Mapeamento do Enum do índice de reajuste do Supabase
+    const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
+    let indice_reajuste = "IGP-M";
+    if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
+    else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
+
+    // Tratamento de valores numéricos e datas
+    const valor = Number(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || 0);
+    const diaVencimento = Number(formData.get("dia_vencimento") || 1);
+    const periodicidade = Number(formData.get("periodicidade_reajuste_meses") || 12);
+    
+    const caucaoRaw = formData.get("deposito_caucao") || formData.get("valor_caucao");
+    const valorCaucao = caucaoRaw ? Number(caucaoRaw) : null;
+
+    const dataFimRaw = String(formData.get("data_fim") || "").trim();
+    const dataFim = dataFimRaw !== "" ? dataFimRaw : null;
+
+    // Inserção compatível com as variações de colunas da tabela "contratos"
+    const { error } = await supabase.from("contratos").insert({
+      codigo: codigoContrato,
+      codigo_contrato: codigoContrato,
+      imovel_id,
+      inquilino_id,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+      dia_vencimento: diaVencimento,
+      valor_atual: valor,
+      valor_aluguel_atual: valor,
+      indice_reajuste: indice_reajuste as "IGP-M" | "IPCA" | "Outro",
+      periodicidade_reajuste_meses: periodicidade,
+      valor_caucao: valorCaucao,
+      deposito_caucao: valorCaucao,
+      clausulas_especiais: String(formData.get("clausulas_especiais") || ""),
+    });
+
+    if (error) {
+      console.error("Erro no Supabase ao inserir contrato:", error.message);
+      throw new Error(error.message);
+    }
+
+    // Marca o imóvel como alugado
+    await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
+
+    revalidatePath("/contratos");
+    revalidatePath("/imoveis");
+    revalidatePath("/");
+  } catch (err: any) {
+    console.error("Falha na ação criarContrato:", err);
+    throw new Error(err.message || "Erro ao cadastrar contrato.");
   }
-
-  const { error } = await supabase.from("contratos").insert({
-    codigo_contrato: codigoContrato,
-    imovel_id,
-    inquilino_id: String(formData.get("inquilino_id")),
-    data_inicio: dataInicio,
-    data_fim: String(formData.get("data_fim") || "") || null,
-    dia_vencimento: Number(formData.get("dia_vencimento")),
-    valor_aluguel_atual: valor,
-    indice_reajuste: String(formData.get("indice_reajuste")),
-    periodicidade_reajuste_meses: Number(formData.get("periodicidade_reajuste_meses")) || 12,
-    deposito_caucao: Number(formData.get("deposito_caucao")) || null,
-    clausulas_especiais: String(formData.get("clausulas_especiais") || ""),
-  });
-
-  if (error) throw new Error(error.message);
-
-  // marca o imóvel como alugado
-  await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
-
-  revalidatePath("/contratos");
-  revalidatePath("/imoveis");
-  revalidatePath("/");
 }
 
 export async function gerarReajustesPendentes() {

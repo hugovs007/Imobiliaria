@@ -57,19 +57,21 @@ export async function cadastrarIndice(_prevState: ActionState | null, formData: 
   }
 }
 
-export async function excluirIndice(formData: FormData): Promise<{ error: string | null }> {
+export async function excluirIndice(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
     const id = String(formData.get("id") || "");
 
-    if (!id) return { error: "ID do índice não fornecido." };
+    if (!id) return;
 
     const { error } = await supabase.from("indices_economicos").delete().eq("id", id);
-    if (error) return { error: error.message };
+    if (error) {
+      console.error("Erro ao excluir índice:", error.message);
+      return;
+    }
 
     revalidatePath("/indices");
-    return { error: null };
   } catch (err: any) {
-    return { error: err?.message || "Não foi possível excluir o índice." };
+    console.error("Exceção ao excluir índice:", err?.message || err);
   }
 }

@@ -24,36 +24,42 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: "Informe a data de início do contrato." };
     }
 
-    // 1. Mapeamento do Enum de reajuste
+    // 1. Mapeamento do Enum reajuste_indice
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 2. Sanitização dos dados numéricos
-    const valorRaw = formData.get("valor_atual") || formData.get("valor_aluguel_atual");
-    const valor_atual = parseFloat(String(valorRaw || "0")) || 0;
+    // 2. Sanitização do valor do aluguel (valor_aluguel no schema)
+    const valorRaw = formData.get("valor_aluguel") || formData.get("valor_atual") || formData.get("valor_aluguel_atual");
+    const valor_aluguel = parseFloat(String(valorRaw || "0")) || 0;
 
+    if (valor_aluguel <= 0) {
+      return { success: false, error: "Informe um valor de aluguel válido." };
+    }
+
+    // 3. Validação do dia de vencimento (conforme restrição check: 1 a 31)
     const diaVencimentoParsed = parseInt(String(formData.get("dia_vencimento") || "10"), 10);
     const dia_vencimento = isNaN(diaVencimentoParsed) ? 10 : Math.min(Math.max(diaVencimentoParsed, 1), 31);
 
+    // 4. Tratamento de periodicidade e valor de caução
     const periodicidadeParsed = parseInt(String(formData.get("periodicidade_reajuste_meses") || "12"), 10);
     const periodicidade_reajuste_meses = isNaN(periodicidadeParsed) ? 12 : periodicidadeParsed;
 
-    const caucaoRaw = String(formData.get("valor_caucao") || formData.get("deposito_caucao") || "").trim();
-    const valor_caucao = caucaoRaw !== "" && !isNaN(parseFloat(caucaoRaw)) ? parseFloat(caucaoRaw) : null;
+    const caucaoRaw = String(formData.get("valor_caucao") || "").trim();
+    const valor_caucao = caucaoRaw !== "" && !isNaN(parseFloat(caucaoRaw)) ? parseFloat(caucaoRaw) : 0;
 
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 3. Montagem do payload seguro com colunas válidas
+    // 5. Payload exato correspondente ao DDL da tabela contratos
     const payload = {
       imovel_id,
       inquilino_id,
       data_inicio: dataInicio,
       data_fim,
       dia_vencimento,
-      valor_atual,
+      valor_aluguel,
       indice_reajuste,
       periodicidade_reajuste_meses,
       valor_caucao,
@@ -68,7 +74,7 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: `Erro no Supabase (${insertError.code}): ${insertError.message}` };
     }
 
-    // 4. Atualiza o status do imóvel
+    // 6. Atualiza o status do imóvel cadastrado para alugado
     await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
 
     revalidatePath("/contratos");

@@ -31,35 +31,11 @@ export default async function PagamentosPage() {
         .from("pagamentos")
         .select(
           `
-          id,
-          competencia,
-          valor_base,
-          valor_desconto,
-          valor_multa_juros,
-          valor_pago,
-          data_vencimento,
-          data_pagamento,
-          status,
-          observacoes,
+          *,
           contratos (
-            id,
-            codigo_contrato,
-            data_inicio,
-            data_fim,
-            valor_aluguel,
-            dia_vencimento,
-            ativo,
-            imoveis (
-              codigo,
-              logradouro,
-              numero,
-              bairro,
-              cidade,
-              uf
-            ),
-            inquilinos (
-              nome
-            )
+            *,
+            imoveis (*),
+            inquilinos (*)
           )
         `
         )
@@ -68,24 +44,9 @@ export default async function PagamentosPage() {
       supabase
         .from("contratos")
         .select(`
-          id,
-          codigo_contrato,
-          ativo,
-          valor_aluguel,
-          dia_vencimento,
-          data_inicio,
-          data_fim,
-          imoveis (
-            codigo,
-            logradouro,
-            numero,
-            bairro,
-            cidade,
-            uf
-          ),
-          inquilinos (
-            nome
-          )
+          *,
+          imoveis (*),
+          inquilinos (*)
         `)
         .eq("ativo", true),
     ]);
@@ -188,7 +149,7 @@ export default async function PagamentosPage() {
               required
               options={contratosVigentes.map((c) => ({
                 value: String(c.id),
-                label: `${c.codigo_contrato || c.id.slice(0, 8)} — ${formatarEnderecoImovel(c.imoveis)} — ${(c.inquilinos as any)?.nome || "Inquilino"}`,
+                label: `${c.codigo || c.codigo_contrato || c.id.slice(0, 8)} — ${formatarEnderecoImovel(c.imoveis)} — ${(c.inquilinos as any)?.nome || "Inquilino"}`,
               }))}
             />
             <Field label="Competência (mês)" name="competencia" type="month" required />
@@ -260,7 +221,7 @@ export default async function PagamentosPage() {
                   {p.competencia ? new Date(p.competencia).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }) : "—"}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs">
-                  {contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—"}
+                  {contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—"}
                 </td>
                 <td className="px-4 py-2.5">
                   {formatarEnderecoImovel(imovel)}

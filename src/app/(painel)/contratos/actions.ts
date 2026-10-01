@@ -110,18 +110,28 @@ export async function renovarContrato(formData: FormData): Promise<{ error: stri
     const dataInicio = String(formData.get("data_inicio") || "");
     const dataFim = String(formData.get("data_fim") || "") || null;
 
+    if (!contratoId || !dataInicio) {
+      return { error: "Parâmetros de renovação inválidos." };
+    }
+
+    // Passa os parâmetros na ordem estrita esperada pela RPC PostgreSQL
     const { error } = await supabase.rpc("renovar_contrato", {
       p_contrato_id: contratoId,
       p_data_inicio: dataInicio,
       p_data_fim: dataFim,
     });
-    if (error) return { error: error.message };
+
+    if (error) {
+      console.error("Falha na RPC renovar_contrato:", error);
+      return { error: error.message };
+    }
 
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
     revalidatePath("/");
     return { error: null };
   } catch (cause: any) {
+    console.error("Exceção ao renovar contrato:", cause);
     return { error: cause?.message || "Não foi possível renovar o contrato." };
   }
 }
@@ -130,7 +140,11 @@ export async function encerrarContrato(formData: FormData): Promise<{ error: str
   try {
     const supabase = await createClient();
     const contratoId = String(formData.get("id") || "");
-    
+
+    if (!contratoId) {
+      return { error: "ID do contrato não informado." };
+    }
+
     // Busca o imóvel associado para liberar status
     const { data: contrato } = await supabase
       .from("contratos")

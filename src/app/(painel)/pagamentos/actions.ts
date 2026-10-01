@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 /**
  * Lança a cobrança mensal para um contrato específico.
+ * Puxa automaticamente o valor_aluguel e dia_vencimento do contrato caso não sejam preenchidos explicitamente.
  */
 export async function lancarCobranca(formData: FormData): Promise<void> {
   try {
@@ -13,11 +14,39 @@ export async function lancarCobranca(formData: FormData): Promise<void> {
     const competenciaRaw = String(formData.get("competencia") || "").trim();
     const competencia = competenciaRaw.length === 7 ? `${competenciaRaw}-01` : competenciaRaw;
     const contratoId = String(formData.get("contrato_id") || "").trim();
-    const valorBase = parseFloat(String(formData.get("valor_base") || formData.get("valor_devido") || "0")) || 0;
-    const dataVencimento = String(formData.get("data_vencimento") || "").trim();
+    let valorBase = parseFloat(String(formData.get("valor_base") || formData.get("valor_devido") || "0")) || 0;
+    let dataVencimento = String(formData.get("data_vencimento") || "").trim();
 
-    if (!contratoId || !competencia || !dataVencimento || valorBase <= 0) {
+    if (!contratoId || !competencia) {
       return;
+    }
+
+    // Se o valor ou vencimento não foram informados no form, puxa direto do contrato ativo
+    if (valorBase <= 0 || !dataVencimento) {
+      const { data: contratoData, error: contratoError } = await supabase
+        .from("contratos")
+        .select("valor_aluguel, dia_vencimento")
+        .eq("id", contratoId)
+        .single();
+
+      if (contratoError || !contratoData) {
+        console.error("Erro ao carregar dados do contrato:", contratoError?.message);
+        return;
+      }
+
+      if (valorBase <= 0) {
+        valorBase = Number(contratoData.valor_aluguel || 0);
+      }
+
+      if (!dataVencimento) {
+        const [anoStr, mesStr] = competencia.split("-");
+        const ano = parseInt(anoStr, 10);
+        const mes = parseInt(mesStr, 10) - 1;
+        const diaVenc = Math.min(Math.max(contratoData.dia_vencimento || 10, 1), 31);
+        const ultimoDiaDoMes = new Date(ano, mes + 1, 0).getDate();
+        const diaEfetivo = Math.min(diaVenc, ultimoDiaDoMes);
+        dataVencimento = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(diaEfetivo).padStart(2, "0")}`;
+      }
     }
 
     const { data: existing } = await supabase
@@ -125,7 +154,7 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
     const dataPagamento = String(formData.get("data_pagamento") || new Date().toISOString().slice(0, 10)).trim();
     const observacoes = String(formData.get("observacoes") || "").trim() || null;
 
-    // Busca o lançamento atual no banco para obter o valor já pago e a data de vencimento
+    // Busca o lançamento atual no banco
     const { data: pagamentoAtual, error: fetchError } = await supabase
       .from("pagamentos")
       .select("valor_base, valor_pago, data_vencimento")
@@ -140,16 +169,15 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
     const valorBase = Number(pagamentoAtual.valor_base || 0);
     const valorJaPagoAnterior = Number(pagamentoAtual.valor_pago || 0);
     
-    // Soma o novo valor pago ao que já tinha sido pago anteriormente
+    // Acumula o valor pago novo com pagamentos anteriores
     const totalPagoEfetivo = valorJaPagoAnterior + valorPagoNovo;
 
-    // Verifica se a dívida foi quitada (considerando eventuais descontos)
+    // Verifica se atingiu a quitação
     const quitado = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01);
 
     const hoje = new Date().toISOString().slice(0, 10);
     const vencido = pagamentoAtual.data_vencimento < hoje;
 
-    // Se quitou -> 'pago'. Se ainda resta saldo e venceu -> 'atrasado'. Caso contrário -> 'pendente'.
     const novoStatus = quitado ? "pago" : (vencido ? "atrasado" : "pendente");
 
     const { error: updateError } = await supabase

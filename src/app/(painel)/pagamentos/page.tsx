@@ -160,12 +160,12 @@ export default async function PagamentosPage() {
               required
               options={contratosVigentes.map((c) => ({
                 value: String(c.id),
-                label: `${c.codigo || c.codigo_contrato || c.id.slice(0, 8)} — ${formatarEnderecoImovel(c.imoveis)} — ${(c.inquilinos as any)?.nome || "Inquilino"}`,
+                label: `${c.codigo || c.codigo_contrato || c.id.slice(0, 8)} — R$ ${Number(c.valor_aluguel || 0).toFixed(2)} — ${(c.inquilinos as any)?.nome || "Inquilino"}`,
               }))}
             />
             <Field label="Competência (mês)" name="competencia" type="month" required />
-            <Field label="Valor devido (R$)" name="valor_base" type="number" step="0.01" required />
-            <Field label="Data de vencimento" name="data_vencimento" type="date" required />
+            <Field label="Valor base (deixe em branco p/ valor do contrato)" name="valor_base" type="number" step="0.01" placeholder="Automático do contrato" />
+            <Field label="Data de vencimento (opcional)" name="data_vencimento" type="date" />
             <div className="sm:col-span-2">
               <Button>Lançar cobrança</Button>
             </div>
@@ -179,7 +179,7 @@ export default async function PagamentosPage() {
             <Field label="Dia de vencimento padrão" name="dia_vencimento" type="number" defaultValue={10} step="1" required />
             <div className="sm:col-span-2">
               <p className="text-xs mb-2" style={{ color: "var(--color-ink-soft)" }}>
-                Gera cobranças para todos os contratos ativos usando o valor do aluguel e o dia de vencimento cadastrado.
+                Gera cobranças para todos os contratos ativos usando o valor do aluguel do contrato recente.
               </p>
               <Button>Gerar cobranças do mês</Button>
             </div>
@@ -199,7 +199,7 @@ export default async function PagamentosPage() {
 
       {/* Tabela Principal */}
       <div className="mt-8">
-        <Table head={["Competência", "Contrato", "Imóvel", "Inquilino", "Valor base", "Valor pago", "Saldo", "Parcela", "Vencimento", "Pagamento", "Observações", "Status", "Ações"]}>
+        <Table head={["Competência", "Contrato", "Imóvel", "Inquilino", "Valor aluguel", "Valor pago", "Saldo restante", "Parcela", "Vencimento", "Pagamento", "Observações", "Status", "Ações"]}>
           {(pagamentos ?? []).map((p) => {
             const contrato = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
             const imovel = contrato?.imoveis;
@@ -207,10 +207,10 @@ export default async function PagamentosPage() {
 
             const valorBase = Number(p.valor_base || 0);
             const valorPago = Number(p.valor_pago || 0);
-            const saldo = Math.max(0, valorBase - valorPago);
+            const saldoRestante = Math.max(0, valorBase - valorPago);
 
             const isPago = p.status === "pago";
-            const isPendente = p.status === "pendente";
+            const isPendente = p.status === "pendente" || p.status === "atrasado";
 
             // Identificação tratada da parcela
             let identificacaoParcela = "—";
@@ -251,15 +251,15 @@ export default async function PagamentosPage() {
                   <Money value={valorBase} />
                 </td>
                 <td className="px-4 py-2.5">
-                  {p.valor_pago != null ? <Money value={valorPago} /> : "—"}
+                  {p.valor_pago != null && p.valor_pago > 0 ? <Money value={valorPago} /> : "—"}
                 </td>
                 <td className="px-4 py-2.5">
-                  {saldo > 0.009 ? (
-                    <span className="font-medium" style={{ color: isPago ? "var(--color-ok)" : "var(--color-alert)" }}>
-                      <Money value={saldo} />
+                  {saldoRestante > 0.009 ? (
+                    <span className="font-medium text-amber-700">
+                      <Money value={saldoRestante} />
                     </span>
                   ) : (
-                    <span style={{ color: "var(--color-ok)" }}>—</span>
+                    <span style={{ color: "var(--color-ok)" }}>Quito (R$ 0,00)</span>
                   )}
                 </td>
                 <td className="px-4 py-2.5 whitespace-nowrap">
@@ -279,7 +279,7 @@ export default async function PagamentosPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Dar baixa no pagamento */}
+                    {/* Dar baixa (parcial ou total) no pagamento */}
                     {!isPago && !p.status?.includes("isento") && (
                       <form action={registrarPagamento} className="flex flex-wrap items-center gap-1">
                         <input type="hidden" name="id" value={String(p.id)} />
@@ -287,8 +287,8 @@ export default async function PagamentosPage() {
                           name="valor_pago"
                           type="number"
                           step="0.01"
-                          placeholder="Valor"
-                          defaultValue={saldo || valorBase}
+                          placeholder="Valor pago"
+                          defaultValue={saldoRestante || valorBase}
                           required
                           className="w-24 rounded-sm border px-2 py-1 text-xs"
                           style={{ borderColor: "var(--color-line)" }}
@@ -301,7 +301,7 @@ export default async function PagamentosPage() {
                           className="rounded-sm border px-2 py-1 text-xs"
                           style={{ borderColor: "var(--color-line)" }}
                         />
-                        <Button variant="ghost">Confirmar</Button>
+                        <Button variant="ghost">Dar Baixa</Button>
                       </form>
                     )}
 
@@ -330,7 +330,7 @@ export default async function PagamentosPage() {
                       id={String(p.id)}
                       fields={[
                         { name: "competencia", label: "Competência", value: p.competencia ? String(p.competencia).slice(0, 7) : "", type: "month", required: true },
-                        { name: "valor_base", label: "Valor base (R$)", value: valorBase, type: "number", step: "0.01", required: true },
+                        { name: "valor_base", label: "Valor aluguel (R$)", value: valorBase, type: "number", step: "0.01", required: true },
                         { name: "valor_pago", label: "Valor pago (R$)", value: valorPago, type: "number", step: "0.01" },
                         { name: "data_vencimento", label: "Vencimento", value: p.data_vencimento, type: "date", required: true },
                         { name: "data_pagamento", label: "Data do pagamento", value: p.data_pagamento, type: "date" },

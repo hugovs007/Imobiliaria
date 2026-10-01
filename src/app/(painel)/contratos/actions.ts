@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export async function criarContrato(formData: FormData) {
+export async function criarContrato(formData: FormData): Promise<{ error?: string }> {
   try {
     const supabase = await createClient();
 
@@ -11,10 +11,10 @@ export async function criarContrato(formData: FormData) {
     const inquilino_id = String(formData.get("inquilino_id") || "").trim();
 
     if (!imovel_id || !inquilino_id) {
-      throw new Error("Selecione um imóvel e um inquilino válidos.");
+      return { error: "Selecione um imóvel e um inquilino válidos." };
     }
 
-    // Busca o código do imóvel para gerar o código do contrato
+    // 1. Busca o código do imóvel para gerar o código do contrato
     const { data: imovel } = await supabase
       .from("imoveis")
       .select("codigo")
@@ -24,57 +24,56 @@ export async function criarContrato(formData: FormData) {
     const imovelCodigo = imovel?.codigo ?? "IMV";
     const dataInicio = String(formData.get("data_inicio") || "").trim();
     const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
-    const codigoContrato = `${imovelCodigo}-${anoMes || "202601"}`;
+    const codigo = `${imovelCodigo}-${anoMes || "202601"}`;
 
-    // Mapeamento do Enum do índice de reajuste do Supabase
+    // 2. Enum exato exigido pelo Postgres
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
-    let indice_reajuste = "IGP-M";
+    let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // Tratamento de valores numéricos e datas
-    const valor = Number(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || 0);
-    const diaVencimento = Number(formData.get("dia_vencimento") || 1);
-    const periodicidade = Number(formData.get("periodicidade_reajuste_meses") || 12);
-    
+    // 3. Formatação rigorosa dos dados
+    const valor_atual = Number(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || 0);
+    const dia_vencimento = Number(formData.get("dia_vencimento") || 1);
+    const periodicidade_reajuste_meses = Number(formData.get("periodicidade_reajuste_meses") || 12);
+
     const caucaoRaw = formData.get("deposito_caucao") || formData.get("valor_caucao");
-    const valorCaucao = caucaoRaw ? Number(caucaoRaw) : null;
+    const valor_caucao = caucaoRaw ? Number(caucaoRaw) : null;
 
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
-    const dataFim = dataFimRaw !== "" ? dataFimRaw : null;
+    const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // Inserção compatível com as variações de colunas da tabela "contratos"
-    const { error } = await supabase.from("contratos").insert({
-      codigo: codigoContrato,
-      codigo_contrato: codigoContrato,
+    // 4. Inserção apenas com as colunas reais da tabela 'contratos'
+    const { error: insertError } = await supabase.from("contratos").insert([{
+      codigo,
       imovel_id,
       inquilino_id,
       data_inicio: dataInicio,
-      data_fim: dataFim,
-      dia_vencimento: diaVencimento,
-      valor_atual: valor,
-      valor_aluguel_atual: valor,
-      indice_reajuste: indice_reajuste as "IGP-M" | "IPCA" | "Outro",
-      periodicidade_reajuste_meses: periodicidade,
-      valor_caucao: valorCaucao,
-      deposito_caucao: valorCaucao,
-      clausulas_especiais: String(formData.get("clausulas_especiais") || ""),
-    });
+      data_fim: data_fim as unknown as string, // permite null se a data for opcional
+      dia_vencimento,
+      valor_atual,
+      indice_reajuste,
+      periodicidade_reajuste_meses,
+      valor_caucao,
+      clausulas_especiais: String(formData.get("clausulas_especiais") || "") || null,
+      ativo: true,
+    }]);
 
-    if (error) {
-      console.error("Erro no Supabase ao inserir contrato:", error.message);
-      throw new Error(error.message);
+    if (insertError) {
+      console.error("Erro no Supabase (Contratos):", insertError);
+      return { error: insertError.message };
     }
 
-    // Marca o imóvel como alugado
+    // 5. Atualiza o status do imóvel para alugado
     await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
 
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
     revalidatePath("/");
+    return {};
   } catch (err: any) {
-    console.error("Falha na ação criarContrato:", err);
-    throw new Error(err.message || "Erro ao cadastrar contrato.");
+    console.error("Erro na action criarContrato:", err);
+    return { error: err?.message || "Ocorreu um erro interno ao cadastrar o contrato." };
   }
 }
 
@@ -105,19 +104,14 @@ export async function renovarContrato(formData: FormData): Promise<{ error: stri
       p_data_inicio: dataInicio,
       p_data_fim: dataFim,
     });
-    if (error) {
-      console.error("Falha na RPC renovar_contrato:", error);
-      return { error: error.message };
-    }
+    if (error) return { error: error.message };
 
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
     revalidatePath("/");
     return { error: null };
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : "Não foi possível renovar o contrato.";
-    console.error("Falha ao renovar contrato:", cause);
-    return { error: message };
+  } catch (cause: any) {
+    return { error: cause?.message || "Não foi possível renovar o contrato." };
   }
 }
 
@@ -126,18 +120,13 @@ export async function encerrarContrato(formData: FormData): Promise<{ error: str
     const supabase = await createClient();
     const contratoId = String(formData.get("id") || "");
     const { error } = await supabase.rpc("encerrar_contrato", { p_contrato_id: contratoId });
-    if (error) {
-      console.error("Falha ao encerrar contrato:", error);
-      return { error: error.message };
-    }
+    if (error) return { error: error.message };
 
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
     revalidatePath("/");
     return { error: null };
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : "Não foi possível encerrar o contrato.";
-    console.error("Falha ao encerrar contrato:", cause);
-    return { error: message };
+  } catch (cause: any) {
+    return { error: cause?.message || "Não foi possível encerrar o contrato." };
   }
 }

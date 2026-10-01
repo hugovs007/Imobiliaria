@@ -16,44 +16,48 @@ type ImovelContrato = {
   id: string;
   codigo: string | null;
   logradouro?: string | null;
+  endereco?: string | null;
   numero?: string | null;
   complemento?: string | null;
   bairro?: string | null;
   cidade?: string | null;
   uf?: string | null;
+  estado?: string | null;
   cep?: string | null;
   status?: string | null;
 };
 
 function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
   if (!imovel) return "—";
+  const rua = imovel.logradouro || imovel.endereco;
+  const cidadeUf = [imovel.cidade, imovel.uf || imovel.estado].filter(Boolean).join("/");
+  
   const partes = [
-    [imovel.logradouro, imovel.numero].filter(Boolean).join(", "),
+    [rua, imovel.numero].filter(Boolean).join(", "),
     imovel.complemento,
     imovel.bairro,
-    [imovel.cidade, imovel.uf].filter(Boolean).join("/"),
+    cidadeUf,
     imovel.cep,
   ].filter(Boolean);
+
   return partes.length > 0 ? partes.join(" - ") : "Endereço não informado";
 }
 
 export default async function ContratosPage() {
   const supabase = await createClient();
 
-  // 1. Busca simplificada para evitar falhas por colunas inconsistentes
+  // 1. Busca robusta para evitar crashes em relacionamentos vazios
   const [resContratos, resImoveis, resInquilinos, resReajustes] = await Promise.all([
     supabase
       .from("contratos")
       .select("*, imoveis(*), inquilinos(nome)")
       .order("created_at", { ascending: false }),
     
-    // Busca TODOS os imóveis sem aplicar filtro restritivo de status que possa zerar o resultado
     supabase
       .from("imoveis")
       .select("*")
       .order("created_at", { ascending: false }),
 
-    // Busca TODOS os inquilinos
     supabase
       .from("inquilinos")
       .select("*")
@@ -65,21 +69,18 @@ export default async function ContratosPage() {
       .eq("status", "pendente"),
   ]);
 
-  // Exibe eventuais erros no log do servidor para diagnóstico
-  if (resImoveis.error) console.error("Erro ao buscar imoveis para contratos:", resImoveis.error.message);
-  if (resInquilinos.error) console.error("Erro ao buscar inquilinos para contratos:", resInquilinos.error.message);
+  if (resImoveis.error) console.error("Erro ao buscar imóveis:", resImoveis.error.message);
+  if (resInquilinos.error) console.error("Erro ao buscar inquilinos:", resInquilinos.error.message);
 
   const listaContratos = resContratos.data ?? [];
   const todosImoveis = resImoveis.data ?? [];
   const listaInquilinos = resInquilinos.data ?? [];
   const listaReajustes = resReajustes.data ?? [];
 
-  // Filtra imóveis disponíveis em memória (aceita 'disponivel', 'Disponível' ou sem status definido)
+  // Filtra imóveis disponíveis ou exibe todos como fallback caso nenhum esteja disponível
   const imoveisDisponiveis = todosImoveis.filter(
     (i) => !i.status || i.status.toLowerCase() === "disponivel"
   );
-
-  // Se por algum motivo o filtro zerar, exibe todos os imóveis cadastrados para permitir o vínculo
   const imoveisParaExibir = imoveisDisponiveis.length > 0 ? imoveisDisponiveis : todosImoveis;
 
   const contratosComSucessor = new Set(
@@ -129,9 +130,9 @@ export default async function ContratosPage() {
             ]}
           />
 
-          <Field label="Data de início" name="data_inicio" type="date" required />
+          <Field label="Data de início" name="data_inicio" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
           <Field label="Data de fim (opcional)" name="data_fim" type="date" />
-          <Field label="Dia de vencimento (1-31)" name="dia_vencimento" type="number" required />
+          <Field label="Dia de vencimento (1-31)" name="dia_vencimento" type="number" required defaultValue={10} />
           <Field label="Valor do aluguel (R$)" name="valor_aluguel_atual" type="number" step="0.01" required />
 
           <Select
@@ -188,9 +189,9 @@ export default async function ContratosPage() {
                     <span>{enderecoCompleto(imovelReajuste)}</span>
                   </div>
                 </td>
-                <td className="px-4 py-2.5">{new Date(r.data_referencia).toLocaleDateString("pt-BR")}</td>
-                <td className="px-4 py-2.5 uppercase">{r.indice_usado}</td>
-                <td className="px-4 py-2.5">{r.percentual_aplicado}%</td>
+                <td className="px-4 py-2.5">{r.data_referencia ? new Date(r.data_referencia).toLocaleDateString("pt-BR") : "—"}</td>
+                <td className="px-4 py-2.5 uppercase">{r.indice_usado || "—"}</td>
+                <td className="px-4 py-2.5">{r.percentual_aplicado ?? 0}%</td>
                 <td className="px-4 py-2.5">
                   <Money value={r.valor_anterior} />
                 </td>
@@ -210,68 +211,82 @@ export default async function ContratosPage() {
       )}
 
       <div className="mt-10">
-        <Table head={["ID", "Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", "Ações"]}>
-          {listaContratos.map((c) => {
-            const imovel = c.imoveis as unknown as ImovelContrato;
-            const possuiRenovacao = contratosComSucessor.has(c.id);
-            const contratoVigente = ["ativo", "renovado", "Ativo"].includes(c.status) && !possuiRenovacao;
-            const statusExibido = possuiRenovacao ? "encerrado" : c.status;
-            return (
-              <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
-                <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">{c.codigo_contrato || c.codigo || "—"}</td>
-                <td className="px-4 py-2.5">
-                  <div className="flex flex-col">
-                    {imovel?.codigo && (
-                      <span className="font-mono text-xs" style={{ color: "var(--color-ink-soft)" }}>
-                        {imovel.codigo}
-                      </span>
-                    )}
-                    <span>{enderecoCompleto(imovel)}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
-                <td className="px-4 py-2.5">{new Date(c.data_inicio).toLocaleDateString("pt-BR")}</td>
-                <td className="px-4 py-2.5">
-                  <Money value={c.valor_aluguel_atual || c.valor_atual} />
-                </td>
-                <td className="px-4 py-2.5 uppercase">{c.indice_reajuste}</td>
-                <td className="px-4 py-2.5">
-                  <StatusBadge status={statusExibido} />
-                </td>
-                <td className="px-4 py-2.5">
-                  {contratoVigente && (
+        <Table head={["Código", "Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", "Ações"]}>
+          {listaContratos.length === 0 ? (
+            <tr style={{ borderTop: "1px solid var(--color-line)" }}>
+              <td colSpan={8} className="px-4 py-4 text-center" style={{ color: "var(--color-ink-soft)" }}>
+                Nenhum contrato cadastrado até o momento.
+              </td>
+            </tr>
+          ) : (
+            listaContratos.map((c) => {
+              const imovel = c.imoveis as unknown as ImovelContrato;
+              const possuiRenovacao = contratosComSucessor.has(c.id);
+              const statusNormalizado = (c.status || "").toLowerCase();
+              const contratoVigente = ["ativo", "renovado"].includes(statusNormalizado) && !possuiRenovacao;
+              const statusExibido = possuiRenovacao ? "encerrado" : (c.status || "ativo");
+
+              return (
+                <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
+                  <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">
+                    {c.codigo_contrato || c.codigo || "—"}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex flex-col">
+                      {imovel?.codigo && (
+                        <span className="font-mono text-xs" style={{ color: "var(--color-ink-soft)" }}>
+                          {imovel.codigo}
+                        </span>
+                      )}
+                      <span>{enderecoCompleto(imovel)}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
+                  <td className="px-4 py-2.5">{c.data_inicio ? new Date(c.data_inicio).toLocaleDateString("pt-BR") : "—"}</td>
+                  <td className="px-4 py-2.5">
+                    <Money value={c.valor_aluguel_atual ?? c.valor_atual} />
+                  </td>
+                  <td className="px-4 py-2.5 uppercase">{c.indice_reajuste || "—"}</td>
+                  <td className="px-4 py-2.5">
+                    <StatusBadge status={statusExibido} />
+                  </td>
+                  <td className="px-4 py-2.5">
                     <div className="flex flex-col items-start gap-2">
-                      <CloseContractForm contractId={c.id} contractCode={c.codigo_contrato || c.id} />
-                      <RenewalForm
-                        contractId={c.id}
-                        contractCode={c.codigo_contrato || c.id}
-                        startDate={dataSeguinte(c.data_fim)}
-                        currentRent={c.valor_aluguel_atual || c.valor_atual}
-                        index={c.indice_reajuste}
+                      {contratoVigente && (
+                        <>
+                          <CloseContractForm contractId={c.id} contractCode={c.codigo_contrato || c.codigo || c.id} />
+                          <RenewalForm
+                            contractId={c.id}
+                            contractCode={c.codigo_contrato || c.codigo || c.id}
+                            startDate={dataSeguinte(c.data_fim)}
+                            currentRent={c.valor_aluguel_atual ?? c.valor_atual ?? 0}
+                            index={c.indice_reajuste || "IGP-M"}
+                          />
+                        </>
+                      )}
+                      <RecordEditor
+                        entity="contratos"
+                        id={c.id}
+                        fields={[
+                          { name: "data_inicio", label: "Data de início", value: c.data_inicio, type: "date", required: true },
+                          { name: "data_fim", label: "Data de fim", value: c.data_fim, type: "date" },
+                          { name: "dia_vencimento", label: "Dia de vencimento", value: c.dia_vencimento, type: "number", required: true },
+                          { name: "valor_aluguel_atual", label: "Aluguel atual (R$)", value: c.valor_aluguel_atual ?? c.valor_atual, type: "number", step: "0.01", required: true },
+                          {
+                            name: "indice_reajuste",
+                            label: "Índice de reajuste",
+                            kind: "select",
+                            value: c.indice_reajuste,
+                            options: [{ value: "IGP-M", label: "IGP-M" }, { value: "IPCA", label: "IPCA" }, { value: "Outro", label: "Outro" }],
+                          },
+                        ]}
                       />
                     </div>
-                  )}
-                  <RecordEditor
-                    entity="contratos"
-                    id={c.id}
-                    fields={[
-                      { name: "data_inicio", label: "Data de início", value: c.data_inicio, type: "date", required: true },
-                      { name: "data_fim", label: "Data de fim", value: c.data_fim, type: "date" },
-                      { name: "dia_vencimento", label: "Dia de vencimento", value: c.dia_vencimento, type: "number", required: true },
-                      { name: "valor_aluguel_atual", label: "Aluguel atual (R$)", value: c.valor_aluguel_atual || c.valor_atual, type: "number", step: "0.01", required: true },
-                      {
-                        name: "indice_reajuste",
-                        label: "Índice de reajuste",
-                        kind: "select",
-                        value: c.indice_reajuste,
-                        options: [{ value: "IGP-M", label: "IGP-M" }, { value: "IPCA", label: "IPCA" }, { value: "Outro", label: "Outro" }],
-                      },
-                    ]}
-                  />
-                </td>
-              </tr>
-            );
-          })}
+                  </td>
+                </tr>
+              );
+            })
+          )}
         </Table>
       </div>
     </div>

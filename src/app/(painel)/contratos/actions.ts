@@ -114,7 +114,6 @@ export async function renovarContrato(formData: FormData): Promise<{ error: stri
       return { error: "Parâmetros de renovação inválidos." };
     }
 
-    // Passa os parâmetros na ordem estrita esperada pela RPC PostgreSQL
     const { error } = await supabase.rpc("renovar_contrato", {
       p_contrato_id: contratoId,
       p_data_inicio: dataInicio,
@@ -145,7 +144,6 @@ export async function encerrarContrato(formData: FormData): Promise<{ error: str
       return { error: "ID do contrato não informado." };
     }
 
-    // Busca o imóvel associado para liberar status
     const { data: contrato } = await supabase
       .from("contratos")
       .select("imovel_id")

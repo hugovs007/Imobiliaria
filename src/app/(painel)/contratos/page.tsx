@@ -46,7 +46,7 @@ function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
 export default async function ContratosPage() {
   const supabase = await createClient();
 
-  // 1. Busca robusta para evitar crashes em relacionamentos vazios
+  // 1. Busca sincronizada de entidades
   const [resContratos, resImoveis, resInquilinos, resReajustes] = await Promise.all([
     supabase
       .from("contratos")
@@ -77,7 +77,7 @@ export default async function ContratosPage() {
   const listaInquilinos = resInquilinos.data ?? [];
   const listaReajustes = resReajustes.data ?? [];
 
-  // Filtra imóveis disponíveis ou exibe todos como fallback caso nenhum esteja disponível
+  // Filtra imóveis disponíveis ou exibe todos como fallback
   const imoveisDisponiveis = todosImoveis.filter(
     (i) => !i.status || i.status.toLowerCase() === "disponivel"
   );
@@ -133,7 +133,7 @@ export default async function ContratosPage() {
           <Field label="Data de início" name="data_inicio" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
           <Field label="Data de fim (opcional)" name="data_fim" type="date" />
           <Field label="Dia de vencimento (1-31)" name="dia_vencimento" type="number" required defaultValue={10} />
-          <Field label="Valor do aluguel (R$)" name="valor_aluguel_atual" type="number" step="0.01" required />
+          <Field label="Valor do aluguel (R$)" name="valor_atual" type="number" step="0.01" required />
 
           <Select
             label="Índice de reajuste"
@@ -147,7 +147,7 @@ export default async function ContratosPage() {
           />
 
           <Field label="Periodicidade do reajuste (meses)" name="periodicidade_reajuste_meses" type="number" defaultValue={12} />
-          <Field label="Caução/depósito (R$)" name="deposito_caucao" type="number" step="0.01" />
+          <Field label="Caução/depósito (R$)" name="valor_caucao" type="number" step="0.01" />
           <TextArea label="Cláusulas especiais" name="clausulas_especiais" />
 
           <div className="sm:col-span-2">
@@ -179,7 +179,7 @@ export default async function ContratosPage() {
             const imovelReajuste = (r.contratos as unknown as { imoveis: ImovelContrato })?.imoveis;
             return (
               <tr key={r.id} style={{ borderTop: "1px solid var(--color-line)" }}>
-                <td className="px-4 py-2.5">
+                <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">
                   <div className="flex flex-col">
                     {imovelReajuste?.codigo && (
                       <span className="font-mono text-xs" style={{ color: "var(--color-ink-soft)" }}>
@@ -229,7 +229,7 @@ export default async function ContratosPage() {
               return (
                 <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
                   <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">
-                    {c.codigo_contrato || c.codigo || "—"}
+                    {c.codigo || c.codigo_contrato || "—"}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-col">
@@ -244,7 +244,7 @@ export default async function ContratosPage() {
                   <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
                   <td className="px-4 py-2.5">{c.data_inicio ? new Date(c.data_inicio).toLocaleDateString("pt-BR") : "—"}</td>
                   <td className="px-4 py-2.5">
-                    <Money value={c.valor_aluguel_atual ?? c.valor_atual} />
+                    <Money value={c.valor_atual ?? c.valor_aluguel_atual} />
                   </td>
                   <td className="px-4 py-2.5 uppercase">{c.indice_reajuste || "—"}</td>
                   <td className="px-4 py-2.5">
@@ -254,12 +254,12 @@ export default async function ContratosPage() {
                     <div className="flex flex-col items-start gap-2">
                       {contratoVigente && (
                         <>
-                          <CloseContractForm contractId={c.id} contractCode={c.codigo_contrato || c.codigo || c.id} />
+                          <CloseContractForm contractId={c.id} contractCode={c.codigo || c.codigo_contrato || c.id} />
                           <RenewalForm
                             contractId={c.id}
-                            contractCode={c.codigo_contrato || c.codigo || c.id}
+                            contractCode={c.codigo || c.codigo_contrato || c.id}
                             startDate={dataSeguinte(c.data_fim)}
-                            currentRent={c.valor_aluguel_atual ?? c.valor_atual ?? 0}
+                            currentRent={c.valor_atual ?? c.valor_aluguel_atual ?? 0}
                             index={c.indice_reajuste || "IGP-M"}
                           />
                         </>
@@ -271,7 +271,7 @@ export default async function ContratosPage() {
                           { name: "data_inicio", label: "Data de início", value: c.data_inicio, type: "date", required: true },
                           { name: "data_fim", label: "Data de fim", value: c.data_fim, type: "date" },
                           { name: "dia_vencimento", label: "Dia de vencimento", value: c.dia_vencimento, type: "number", required: true },
-                          { name: "valor_aluguel_atual", label: "Aluguel atual (R$)", value: c.valor_aluguel_atual ?? c.valor_atual, type: "number", step: "0.01", required: true },
+                          { name: "valor_atual", label: "Aluguel atual (R$)", value: c.valor_atual ?? c.valor_aluguel_atual, type: "number", step: "0.01", required: true },
                           {
                             name: "indice_reajuste",
                             label: "Índice de reajuste",

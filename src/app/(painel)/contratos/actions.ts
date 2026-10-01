@@ -14,7 +14,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
       throw new Error("Selecione um imóvel e um inquilino válidos.");
     }
 
-    // 1. Busca o código do imóvel para gerar o identificador único
+    // 1. Busca o código do imóvel para gerar o identificador único do contrato
     const { data: imovel } = await supabase
       .from("imoveis")
       .select("codigo")
@@ -26,13 +26,13 @@ export async function criarContrato(formData: FormData): Promise<void> {
     const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
     const codigo = `${imovelCodigo}-${anoMes || "202601"}`;
 
-    // 2. Normalização do Enum exato exigido pelo Postgres
+    // 2. Normalização do Enum exato do Postgres ('IGP-M', 'IPCA', 'Outro')
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 3. Leitura e tratamento dos campos conforme o schema da tabela "contratos"
+    // 3. Tratamento dos valores numéricos e datas
     const valor_atual = parseFloat(
       String(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || "0")
     );
@@ -53,7 +53,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 4. Inserção estrita utilizando as colunas existentes no banco
+    // 4. Inserção estrita utilizando os nomes de colunas reais do banco
     const { error: insertError } = await supabase.from("contratos").insert([{
       codigo,
       imovel_id,
@@ -74,7 +74,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
       throw new Error(insertError.message);
     }
 
-    // 5. Atualiza o status do imóvel para alugado
+    // 5. Atualiza o status do imóvel para 'alugado'
     await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
 
     revalidatePath("/contratos");

@@ -24,13 +24,13 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: "Informe a data de início do contrato." };
     }
 
-    // Mapeamento do Enum de reajuste
+    // 1. Mapeamento do Enum de reajuste
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // Sanitização de valores numéricos
+    // 2. Sanitização dos dados numéricos
     const valorRaw = formData.get("valor_atual") || formData.get("valor_aluguel_atual");
     const valor_atual = parseFloat(String(valorRaw || "0")) || 0;
 
@@ -40,13 +40,13 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
     const periodicidadeParsed = parseInt(String(formData.get("periodicidade_reajuste_meses") || "12"), 10);
     const periodicidade_reajuste_meses = isNaN(periodicidadeParsed) ? 12 : periodicidadeParsed;
 
-    const caucaoRaw = String(formData.get("valor_caucao") || "").trim();
+    const caucaoRaw = String(formData.get("valor_caucao") || formData.get("deposito_caucao") || "").trim();
     const valor_caucao = caucaoRaw !== "" && !isNaN(parseFloat(caucaoRaw)) ? parseFloat(caucaoRaw) : null;
 
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // Payload contendo estritamente as colunas padrão
+    // 3. Montagem do payload seguro com colunas válidas
     const payload = {
       imovel_id,
       inquilino_id,
@@ -58,7 +58,7 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       periodicidade_reajuste_meses,
       valor_caucao,
       clausulas_especiais: String(formData.get("clausulas_especiais") || "").trim() || null,
-      status: "ativo",
+      ativo: true,
     };
 
     const { error: insertError } = await supabase.from("contratos").insert([payload]);
@@ -68,7 +68,7 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: `Erro no Supabase (${insertError.code}): ${insertError.message}` };
     }
 
-    // Marca o imóvel como alugado
+    // 4. Atualiza o status do imóvel
     await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
 
     revalidatePath("/contratos");

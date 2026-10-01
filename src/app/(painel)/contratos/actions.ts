@@ -14,7 +14,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
       throw new Error("Selecione um imóvel e um inquilino válidos.");
     }
 
-    // 1. Busca o código do imóvel para gerar o identificador único do contrato
+    // 1. Busca o código do imóvel para gerar o identificador do contrato
     const { data: imovel } = await supabase
       .from("imoveis")
       .select("codigo")
@@ -26,34 +26,29 @@ export async function criarContrato(formData: FormData): Promise<void> {
     const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
     const codigo = `${imovelCodigo}-${anoMes || "202601"}`;
 
-    // 2. Normalização do Enum exato do Postgres ('IGP-M', 'IPCA', 'Outro')
+    // 2. Mapeamento do Enum exato exigido pelo Postgres
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 3. Tratamento dos valores numéricos e datas
-    const valor_atual = parseFloat(
-      String(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || "0")
-    );
-    const dia_vencimento = Math.min(
-      Math.max(parseInt(String(formData.get("dia_vencimento") || "10"), 10), 1),
-      31
-    );
-    const periodicidade_reajuste_meses = parseInt(
-      String(formData.get("periodicidade_reajuste_meses") || "12"),
-      10
-    );
+    // 3. Sanitização contra NaN e valores indefinidos
+    const valorRaw = formData.get("valor_atual") || formData.get("valor_aluguel_atual");
+    const valor_atual = parseFloat(String(valorRaw || "0")) || 0;
 
-    const caucaoRaw = String(
-      formData.get("deposito_caucao") || formData.get("valor_caucao") || ""
-    ).trim();
-    const valor_caucao = caucaoRaw !== "" ? parseFloat(caucaoRaw) : null;
+    const diaVencimentoParsed = parseInt(String(formData.get("dia_vencimento") || "10"), 10);
+    const dia_vencimento = isNaN(diaVencimentoParsed) ? 10 : Math.min(Math.max(diaVencimentoParsed, 1), 31);
+
+    const periodicidadeParsed = parseInt(String(formData.get("periodicidade_reajuste_meses") || "12"), 10);
+    const periodicidade_reajuste_meses = isNaN(periodicidadeParsed) ? 12 : periodicidadeParsed;
+
+    const caucaoRaw = String(formData.get("valor_caucao") || formData.get("deposito_caucao") || "").trim();
+    const valor_caucao = caucaoRaw !== "" && !isNaN(parseFloat(caucaoRaw)) ? parseFloat(caucaoRaw) : null;
 
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 4. Inserção estrita utilizando os nomes de colunas reais do banco
+    // 4. Inserção tratada
     const { error: insertError } = await supabase.from("contratos").insert([{
       codigo,
       imovel_id,
@@ -67,21 +62,22 @@ export async function criarContrato(formData: FormData): Promise<void> {
       valor_caucao,
       clausulas_especiais: String(formData.get("clausulas_especiais") || "").trim() || null,
       ativo: true,
+      status: "ativo",
     }]);
 
     if (insertError) {
-      console.error("Erro Supabase ao salvar contrato:", insertError.message);
+      console.error("Erro Supabase ao inserir contrato:", insertError.message);
       throw new Error(insertError.message);
     }
 
-    // 5. Atualiza o status do imóvel para 'alugado'
+    // 5. Marca o imóvel como alugado
     await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
 
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
     revalidatePath("/");
   } catch (err: any) {
-    console.error("Erro na Server Action criarContrato:", err);
+    console.error("Exceção capturada em criarContrato:", err?.message || err);
     throw new Error(err?.message || "Ocorreu um erro interno ao cadastrar o contrato.");
   }
 }

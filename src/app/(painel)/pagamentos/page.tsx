@@ -111,7 +111,7 @@ export default async function PagamentosPage() {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
         <PageHeader title="PDV — Recebimento e Caixa" subtitle="Lançamento de movimentações financeiras, caixa e impressão de recibos." />
         <form action={atualizarAtrasados}>
-          <Button variant="ghost" className="text-xs border">🔄 Atualizar status de atrasados</Button>
+          <Button variant="ghost">🔄 Atualizar status de atrasados</Button>
         </form>
       </div>
 
@@ -165,53 +165,55 @@ export default async function PagamentosPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-6">
         
         {/* 1. Lançar Entrada PDV */}
-        <Card className="border-2 border-emerald-600 bg-emerald-50/20">
-          <h3 className="mb-3 font-semibold text-emerald-800 flex items-center gap-1.5">
-            💳 Lançar Entrada PDV (Recebimento)
-          </h3>
-          {cobrancasAbertas.length > 0 ? (
-            <form action={registrarPagamento} className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <div className="sm:col-span-2">
+        <Card>
+          <div className="p-1">
+            <h3 className="mb-3 font-semibold text-emerald-800 flex items-center gap-1.5">
+              💳 Lançar Entrada PDV (Recebimento)
+            </h3>
+            {cobrancasAbertas.length > 0 ? (
+              <form action={registrarPagamento} className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Select
+                    label="Selecione o Contrato / Parcela em Aberto"
+                    name="id"
+                    required
+                    options={cobrancasAbertas.map((p) => {
+                      const c = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
+                      const inq = c?.inquilinos?.nome || "Inquilino";
+                      const saldo = Math.max(0, Number(p.valor_base || 0) - Number(p.valor_pago || 0));
+                      const comp = formatarDataSegura(p.competencia, { month: "2-digit", year: "numeric" });
+                      return {
+                        value: String(p.id),
+                        label: `${comp} — ${c?.codigo || c?.codigo_contrato || c?.id?.slice(0, 6)} — ${inq} (Saldo: R$ ${saldo.toFixed(2)})`,
+                      };
+                    })}
+                  />
+                </div>
+                <Field label="Valor Recebido (R$)" name="valor_pago" type="number" step="0.01" required placeholder="0.00" />
                 <Select
-                  label="Selecione o Contrato / Parcela em Aberto"
-                  name="id"
-                  required
-                  options={cobrancasAbertas.map((p) => {
-                    const c = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
-                    const inq = c?.inquilinos?.nome || "Inquilino";
-                    const saldo = Math.max(0, Number(p.valor_base || 0) - Number(p.valor_pago || 0));
-                    const comp = formatarDataSegura(p.competencia, { month: "2-digit", year: "numeric" });
-                    return {
-                      value: String(p.id),
-                      label: `${comp} — ${c?.codigo || c?.codigo_contrato || c?.id?.slice(0, 6)} — ${inq} (Saldo: R$ ${saldo.toFixed(2)})`,
-                    };
-                  })}
+                  label="Forma de Pagamento"
+                  name="forma_pagamento"
+                  defaultValue="PIX"
+                  options={[
+                    { value: "PIX", label: "PIX" },
+                    { value: "Dinheiro", label: "Dinheiro" },
+                    { value: "Cartão de Débito", label: "Cartão de Débito" },
+                    { value: "Cartão de Crédito", label: "Cartão de Crédito" },
+                    { value: "Transferência Bancária", label: "Transferência" },
+                  ]}
                 />
-              </div>
-              <Field label="Valor Recebido (R$)" name="valor_pago" type="number" step="0.01" required placeholder="0.00" />
-              <Select
-                label="Forma de Pagamento"
-                name="forma_pagamento"
-                defaultValue="PIX"
-                options={[
-                  { value: "PIX", label: "PIX" },
-                  { value: "Dinheiro", label: "Dinheiro" },
-                  { value: "Cartão de Débito", label: "Cartão de Débito" },
-                  { value: "Cartão de Crédito", label: "Cartão de Crédito" },
-                  { value: "Transferência Bancária", label: "Transferência" },
-                ]}
-              />
-              <Field label="Data do Pagamento" name="data_pagamento" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
-              <Field label="Observação (opcional)" name="observacoes" placeholder="Ex: Entrada 1/2" />
-              <div className="sm:col-span-2 mt-1">
-                <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2">
-                  Confirmar e Gerar Recibo
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <p className="text-xs text-gray-500 py-6 text-center">Nenhum débito ou parcela pendente no momento.</p>
-          )}
+                <Field label="Data do Pagamento" name="data_pagamento" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
+                <Field label="Observação (opcional)" name="observacoes" placeholder="Ex: Entrada 1/2" />
+                <div className="sm:col-span-2 mt-1">
+                  <Button variant="primary">
+                    Confirmar e Gerar Recibo
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <p className="text-xs text-gray-500 py-6 text-center">Nenhum débito ou parcela pendente no momento.</p>
+            )}
+          </div>
         </Card>
 
         {/* 2. Lançar Cobranças em Lote */}
@@ -224,7 +226,7 @@ export default async function PagamentosPage() {
               <p className="text-xs mb-3" style={{ color: "var(--color-ink-soft)" }}>
                 Gera cobranças mensais para todos os contratos ativos com o valor do aluguel.
               </p>
-              <Button variant="ghost" className="w-full border">Gerar cobranças do mês</Button>
+              <Button variant="ghost">Gerar cobranças do mês</Button>
             </div>
           </form>
         </Card>
@@ -246,7 +248,7 @@ export default async function PagamentosPage() {
             <Field label="Valor base (opcional)" name="valor_base" type="number" step="0.01" placeholder="Automático" />
             <Field label="Vencimento (opcional)" name="data_vencimento" type="date" />
             <div className="sm:col-span-2">
-              <Button variant="ghost" className="w-full border">Lançar cobrança</Button>
+              <Button variant="ghost">Lançar cobrança</Button>
             </div>
           </form>
         </Card>
@@ -321,7 +323,7 @@ export default async function PagamentosPage() {
                     {isPendente && (
                       <form action={marcarIsento} className="inline">
                         <input type="hidden" name="id" value={String(p.id)} />
-                        <Button variant="ghost" className="text-xs">Isentar</Button>
+                        <Button variant="ghost">Isentar</Button>
                       </form>
                     )}
 
@@ -355,7 +357,7 @@ export default async function PagamentosPage() {
                     {isPendente && (
                       <form action={excluirPagamento} className="inline">
                         <input type="hidden" name="id" value={String(p.id)} />
-                        <Button variant="ghost" className="text-xs text-red-600">Excluir</Button>
+                        <Button variant="ghost">Excluir</Button>
                       </form>
                     )}
                   </div>

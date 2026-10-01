@@ -137,7 +137,7 @@ export async function lancarCobrancasEmLote(formData: FormData): Promise<void> {
 }
 
 /**
- * Registra a baixa (parcial ou total) de um pagamento.
+ * Registra cada movimentação/entrada financeira separadamente no histórico e atualiza o saldo restante.
  */
 export async function registrarPagamento(formData: FormData): Promise<void> {
   try {
@@ -152,29 +152,37 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
     const valorDesconto = parseFloat(String(formData.get("valor_desconto") || "0")) || 0;
     const valorMultaJuros = parseFloat(String(formData.get("valor_multa_juros") || "0")) || 0;
     const dataPagamento = String(formData.get("data_pagamento") || new Date().toISOString().slice(0, 10)).trim();
-    const observacoes = String(formData.get("observacoes") || "").trim() || null;
+    const observacaoNova = String(formData.get("observacoes") || "").trim();
 
-    // Busca o lançamento atual no banco
+    // Busca o lançamento atual no banco de dados
     const { data: pagamentoAtual, error: fetchError } = await supabase
       .from("pagamentos")
-      .select("valor_base, valor_pago, data_vencimento")
+      .select("valor_base, valor_pago, data_vencimento, observacoes")
       .eq("id", id)
       .single();
 
     if (fetchError || !pagamentoAtual) {
-      console.error("Erro ao buscar pagamento para baixa:", fetchError?.message);
+      console.error("Erro ao buscar pagamento para registrar movimentação:", fetchError?.message);
       return;
     }
 
     const valorBase = Number(pagamentoAtual.valor_base || 0);
     const valorJaPagoAnterior = Number(pagamentoAtual.valor_pago || 0);
     
-    // Acumula o valor pago novo com pagamentos anteriores
+    // Soma o novo valor pago ao acumulado
     const totalPagoEfetivo = valorJaPagoAnterior + valorPagoNovo;
 
-    // Verifica se atingiu a quitação
-    const quitado = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01);
+    // Registra a linha do histórico da movimentação
+    const dataFormatada = new Date(dataPagamento + "T00:00:00").toLocaleDateString("pt-BR");
+    const registroMovimentacao = `[${dataFormatada}] Entrada R$ ${valorPagoNovo.toFixed(2)}${
+      observacaoNova ? ` (${observacaoNova})` : ""
+    }`;
 
+    const historicoAtual = pagamentoAtual.observacoes ? `${pagamentoAtual.observacoes}\n` : "";
+    const historicoAtualizado = `${historicoAtual}${registroMovimentacao}`;
+
+    // Avalia a quitação total
+    const quitado = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01);
     const hoje = new Date().toISOString().slice(0, 10);
     const vencido = pagamentoAtual.data_vencimento < hoje;
 
@@ -187,14 +195,14 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
         valor_desconto: valorDesconto,
         valor_multa_juros: valorMultaJuros,
         data_pagamento: dataPagamento,
-        observacoes,
+        observacoes: historicoAtualizado,
         status: novoStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
 
     if (updateError) {
-      console.error("Erro ao registrar pagamento parcial:", updateError.message);
+      console.error("Erro ao registrar movimentação de pagamento:", updateError.message);
       return;
     }
 

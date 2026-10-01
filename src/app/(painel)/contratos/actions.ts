@@ -14,7 +14,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
       throw new Error("Selecione um imóvel e um inquilino válidos.");
     }
 
-    // 1. Busca o código do imóvel para gerar o identificador do contrato
+    // 1. Busca o código do imóvel para gerar o identificador único
     const { data: imovel } = await supabase
       .from("imoveis")
       .select("codigo")
@@ -26,24 +26,34 @@ export async function criarContrato(formData: FormData): Promise<void> {
     const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
     const codigo = `${imovelCodigo}-${anoMes || "202601"}`;
 
-    // 2. Mapeamento do Enum exato exigido pelo Supabase ('IGP-M', 'IPCA', 'Outro')
+    // 2. Normalização do Enum exato exigido pelo Postgres
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 3. Sanitização dos valores numéricos e datas
-    const valor_atual = parseFloat(String(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || "0"));
-    const dia_vencimento = Math.min(Math.max(parseInt(String(formData.get("dia_vencimento") || "10"), 10), 1), 31);
-    const periodicidade_reajuste_meses = parseInt(String(formData.get("periodicidade_reajuste_meses") || "12"), 10);
+    // 3. Leitura e tratamento dos campos conforme o schema da tabela "contratos"
+    const valor_atual = parseFloat(
+      String(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || "0")
+    );
+    const dia_vencimento = Math.min(
+      Math.max(parseInt(String(formData.get("dia_vencimento") || "10"), 10), 1),
+      31
+    );
+    const periodicidade_reajuste_meses = parseInt(
+      String(formData.get("periodicidade_reajuste_meses") || "12"),
+      10
+    );
 
-    const caucaoRaw = String(formData.get("deposito_caucao") || formData.get("valor_caucao") || "").trim();
+    const caucaoRaw = String(
+      formData.get("deposito_caucao") || formData.get("valor_caucao") || ""
+    ).trim();
     const valor_caucao = caucaoRaw !== "" ? parseFloat(caucaoRaw) : null;
 
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 4. Inserção tratada
+    // 4. Inserção estrita utilizando as colunas existentes no banco
     const { error: insertError } = await supabase.from("contratos").insert([{
       codigo,
       imovel_id,
@@ -60,7 +70,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
     }]);
 
     if (insertError) {
-      console.error("Erro do Supabase ao cadastrar contrato:", insertError.message);
+      console.error("Erro Supabase ao salvar contrato:", insertError.message);
       throw new Error(insertError.message);
     }
 
@@ -71,7 +81,7 @@ export async function criarContrato(formData: FormData): Promise<void> {
     revalidatePath("/imoveis");
     revalidatePath("/");
   } catch (err: any) {
-    console.error("Erro na Server Action criarContrato:", err?.message || err);
+    console.error("Erro na Server Action criarContrato:", err);
     throw new Error(err?.message || "Ocorreu um erro interno ao cadastrar o contrato.");
   }
 }

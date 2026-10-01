@@ -104,7 +104,7 @@ export default async function PagamentosPage() {
 
   const contratosVigentes = contratos.filter((c) => c.ativo !== false);
 
-  // Estatísticas
+  // Estatísticas do painel
   const stats = {
     total: pagamentos.length,
     pagos: pagamentos.filter((p) => p.status === "pago").length,
@@ -133,7 +133,7 @@ export default async function PagamentosPage() {
     <div>
       <PageHeader title="Pagamentos e recibos" subtitle="Lançamento mensal de aluguéis e baixa de pagamentos." />
 
-      {/* Painel de Estatísticas */}
+      {/* Cards de Estatísticas */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7 mb-6">
         <Card>
           <div className="text-2xl font-semibold" style={{ fontFamily: "var(--font-serif)", color: "var(--color-ink)" }}>
@@ -179,7 +179,7 @@ export default async function PagamentosPage() {
         </Card>
       </div>
 
-      {/* Ações Rápidas */}
+      {/* Formulários de Lançamento */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         <Card>
           <h3 className="mb-4 font-medium" style={{ color: "var(--color-ink)" }}>Lançar cobrança avulsa</h3>
@@ -227,7 +227,7 @@ export default async function PagamentosPage() {
         </Card>
       </div>
 
-      {/* Tabela de Pagamentos */}
+      {/* Tabela Principal */}
       <div className="mt-8">
         <Table head={["Competência", "Contrato", "Imóvel", "Inquilino", "Valor base", "Valor pago", "Saldo", "Parcela", "Vencimento", "Pagamento", "Observações", "Status", "Ações"]}>
           {(pagamentos ?? []).map((p) => {
@@ -242,7 +242,7 @@ export default async function PagamentosPage() {
             const isPago = p.status === "pago";
             const isPendente = p.status === "pendente";
 
-            // Cálculo da parcela
+            // Identificação da parcela
             let identificacaoParcela = "—";
             if (contrato?.data_inicio && contrato?.data_fim) {
               const dataInicio = new Date(contrato.data_inicio);
@@ -302,7 +302,7 @@ export default async function PagamentosPage() {
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Baixa de Pagamento */}
+                    {/* Dar baixa no pagamento */}
                     {!isPago && !p.status?.includes("isento") && (
                       <form action={registrarPagamento} className="flex flex-wrap items-center gap-1">
                         <input type="hidden" name="id" value={String(p.id)} />
@@ -328,7 +328,7 @@ export default async function PagamentosPage() {
                       </form>
                     )}
 
-                    {/* Marcar Isento */}
+                    {/* Marcar como Isento */}
                     {isPendente && (
                       <form action={marcarIsento} className="inline">
                         <input type="hidden" name="id" value={String(p.id)} />
@@ -336,7 +336,7 @@ export default async function PagamentosPage() {
                       </form>
                     )}
 
-                    {/* Link para Recibo */}
+                    {/* Link do Recibo */}
                     {isPago && (
                       <Link
                         href={`/recibos/${p.id}`}
@@ -347,7 +347,7 @@ export default async function PagamentosPage() {
                       </Link>
                     )}
 
-                    {/* Modal/Drawer de Edição */}
+                    {/* Editor de Registro */}
                     <RecordEditor
                       entity="pagamentos"
                       id={String(p.id)}
@@ -373,7 +373,7 @@ export default async function PagamentosPage() {
                       ]}
                     />
 
-                    {/* Botão de Exclusão */}
+                    {/* Excluir Lançamento */}
                     {isPendente && (
                       <form action={excluirPagamento} className="inline" onSubmit={(e) => { if (!confirm("Excluir este pagamento?")) e.preventDefault(); }}>
                         <input type="hidden" name="id" value={String(p.id)} />

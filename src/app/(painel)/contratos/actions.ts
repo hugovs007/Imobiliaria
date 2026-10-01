@@ -19,31 +19,18 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: "Selecione um imóvel e um inquilino válidos." };
     }
 
-    // 1. Busca dados do imóvel
-    const { data: imovel } = await supabase
-      .from("imoveis")
-      .select("codigo")
-      .eq("id", imovel_id)
-      .maybeSingle();
-
-    const imovelCodigo = imovel?.codigo ?? "IMV";
     const dataInicio = String(formData.get("data_inicio") || "").trim();
-    
     if (!dataInicio) {
       return { success: false, error: "Informe a data de início do contrato." };
     }
 
-    const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
-    const sulfixoRandom = Math.floor(1000 + Math.random() * 9000);
-    const codigoGerado = `${imovelCodigo}-${anoMes || "202610"}-${sulfixoRandom}`;
-
-    // 2. Mapeamento do Enum de reajuste
+    // Mapeamento do Enum de reajuste
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 3. Sanitização dos dados numéricos
+    // Sanitização de valores numéricos
     const valorRaw = formData.get("valor_atual") || formData.get("valor_aluguel_atual");
     const valor_atual = parseFloat(String(valorRaw || "0")) || 0;
 
@@ -53,14 +40,14 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
     const periodicidadeParsed = parseInt(String(formData.get("periodicidade_reajuste_meses") || "12"), 10);
     const periodicidade_reajuste_meses = isNaN(periodicidadeParsed) ? 12 : periodicidadeParsed;
 
-    const caucaoRaw = String(formData.get("valor_caucao") || formData.get("deposito_caucao") || "").trim();
+    const caucaoRaw = String(formData.get("valor_caucao") || "").trim();
     const valor_caucao = caucaoRaw !== "" && !isNaN(parseFloat(caucaoRaw)) ? parseFloat(caucaoRaw) : null;
 
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 4. Montagem base do payload
-    const payload: Record<string, any> = {
+    // Payload contendo estritamente as colunas padrão
+    const payload = {
       imovel_id,
       inquilino_id,
       data_inicio: dataInicio,
@@ -71,35 +58,17 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       periodicidade_reajuste_meses,
       valor_caucao,
       clausulas_especiais: String(formData.get("clausulas_especiais") || "").trim() || null,
-      ativo: true,
       status: "ativo",
     };
 
-    // Tenta primeiro sem coluna de código (caso seja autogerada ou trigger)
-    let { error: insertError } = await supabase.from("contratos").insert([payload]);
-
-    // Se exigir código, testa as duas nomenclaturas possíveis
-    if (insertError && insertError.code === "PGRST204") {
-      // Tentativa 1: 'codigo'
-      payload.codigo = codigoGerado;
-      let res = await supabase.from("contratos").insert([payload]);
-      
-      if (res.error && res.error.code === "PGRST204") {
-        // Tentativa 2: 'codigo_contrato'
-        delete payload.codigo;
-        payload.codigo_contrato = codigoGerado;
-        res = await supabase.from("contratos").insert([payload]);
-      }
-
-      insertError = res.error;
-    }
+    const { error: insertError } = await supabase.from("contratos").insert([payload]);
 
     if (insertError) {
       console.error("Erro do Supabase ao inserir contrato:", insertError);
       return { success: false, error: `Erro no Supabase (${insertError.code}): ${insertError.message}` };
     }
 
-    // 5. Atualiza o status do imóvel
+    // Marca o imóvel como alugado
     await supabase.from("imoveis").update({ status: "alugado" }).eq("id", imovel_id);
 
     revalidatePath("/contratos");

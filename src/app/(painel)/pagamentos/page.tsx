@@ -74,6 +74,13 @@ export default async function PagamentosPage() {
 
   const contratosVigentes = contratos.filter((c) => c.ativo !== false);
 
+  // Cobranças pendentes ou com saldo a pagar para o formulário de Entrada PDV
+  const cobrancasAbertas = pagamentos.filter((p) => {
+    const vBase = Number(p.valor_base || 0);
+    const vPago = Number(p.valor_pago || 0);
+    return (vBase - vPago) > 0.009 && p.status !== "isento";
+  });
+
   // Estatísticas
   const stats = {
     total: pagamentos.length,
@@ -91,7 +98,7 @@ export default async function PagamentosPage() {
   if (error) {
     return (
       <div>
-        <PageHeader title="PDV — Recebimento e Caixa" subtitle="Caixa de recebimentos de aluguéis e emissão de recibos." />
+        <PageHeader title="PDV — Recebimento e Caixa" subtitle="Lançamento de movimentações financeiras e recibos." />
         <Alert variant="destructive" className="mt-4">
           <strong>Erro ao carregar dados:</strong> {error}
         </Alert>
@@ -101,7 +108,12 @@ export default async function PagamentosPage() {
 
   return (
     <div>
-      <PageHeader title="PDV — Recebimento e Caixa" subtitle="Lançamento de movimentações financeiras, caixa e impressão de recibos." />
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+        <PageHeader title="PDV — Recebimento e Caixa" subtitle="Lançamento de movimentações financeiras, caixa e impressão de recibos." />
+        <form action={atualizarAtrasados}>
+          <Button variant="ghost" className="text-xs border">🔄 Atualizar status de atrasados</Button>
+        </form>
+      </div>
 
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7 mb-6">
@@ -149,10 +161,77 @@ export default async function PagamentosPage() {
         </Card>
       </div>
 
-      {/* Formulários de Lançamento */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
+      {/* Painel Superior do PDV */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-6">
+        
+        {/* 1. Lançar Entrada PDV */}
+        <Card className="border-2 border-emerald-600 bg-emerald-50/20">
+          <h3 className="mb-3 font-semibold text-emerald-800 flex items-center gap-1.5">
+            💳 Lançar Entrada PDV (Recebimento)
+          </h3>
+          {cobrancasAbertas.length > 0 ? (
+            <form action={registrarPagamento} className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Select
+                  label="Selecione o Contrato / Parcela em Aberto"
+                  name="id"
+                  required
+                  options={cobrancasAbertas.map((p) => {
+                    const c = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
+                    const inq = c?.inquilinos?.nome || "Inquilino";
+                    const saldo = Math.max(0, Number(p.valor_base || 0) - Number(p.valor_pago || 0));
+                    const comp = formatarDataSegura(p.competencia, { month: "2-digit", year: "numeric" });
+                    return {
+                      value: String(p.id),
+                      label: `${comp} — ${c?.codigo || c?.codigo_contrato || c?.id?.slice(0, 6)} — ${inq} (Saldo: R$ ${saldo.toFixed(2)})`,
+                    };
+                  })}
+                />
+              </div>
+              <Field label="Valor Recebido (R$)" name="valor_pago" type="number" step="0.01" required placeholder="0.00" />
+              <Select
+                label="Forma de Pagamento"
+                name="forma_pagamento"
+                defaultValue="PIX"
+                options={[
+                  { value: "PIX", label: "PIX" },
+                  { value: "Dinheiro", label: "Dinheiro" },
+                  { value: "Cartão de Débito", label: "Cartão de Débito" },
+                  { value: "Cartão de Crédito", label: "Cartão de Crédito" },
+                  { value: "Transferência Bancária", label: "Transferência" },
+                ]}
+              />
+              <Field label="Data do Pagamento" name="data_pagamento" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
+              <Field label="Observação (opcional)" name="observacoes" placeholder="Ex: Entrada 1/2" />
+              <div className="sm:col-span-2 mt-1">
+                <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-2">
+                  Confirmar e Gerar Recibo
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-xs text-gray-500 py-6 text-center">Nenhum débito ou parcela pendente no momento.</p>
+          )}
+        </Card>
+
+        {/* 2. Lançar Cobranças em Lote */}
         <Card>
-          <h3 className="mb-4 font-medium" style={{ color: "var(--color-ink)" }}>Lançar cobrança avulsa</h3>
+          <h3 className="mb-3 font-medium" style={{ color: "var(--color-ink)" }}>Lançar cobranças em lote</h3>
+          <form action={lancarCobrancasEmLote} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Competência (mês)" name="competencia" type="month" required defaultValue={new Date().toISOString().slice(0, 7)} />
+            <Field label="Dia de vencimento padrão" name="dia_vencimento" type="number" defaultValue={10} step="1" required />
+            <div className="sm:col-span-2">
+              <p className="text-xs mb-3" style={{ color: "var(--color-ink-soft)" }}>
+                Gera cobranças mensais para todos os contratos ativos com o valor do aluguel.
+              </p>
+              <Button variant="ghost" className="w-full border">Gerar cobranças do mês</Button>
+            </div>
+          </form>
+        </Card>
+
+        {/* 3. Lançar Cobrança Avulsa */}
+        <Card>
+          <h3 className="mb-3 font-medium" style={{ color: "var(--color-ink)" }}>Lançar cobrança avulsa</h3>
           <form action={lancarCobranca} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Select
               label="Contrato"
@@ -164,42 +243,20 @@ export default async function PagamentosPage() {
               }))}
             />
             <Field label="Competência (mês)" name="competencia" type="month" required />
-            <Field label="Valor base (opcional)" name="valor_base" type="number" step="0.01" placeholder="Automático do contrato" />
-            <Field label="Data de vencimento (opcional)" name="data_vencimento" type="date" />
+            <Field label="Valor base (opcional)" name="valor_base" type="number" step="0.01" placeholder="Automático" />
+            <Field label="Vencimento (opcional)" name="data_vencimento" type="date" />
             <div className="sm:col-span-2">
-              <Button>Lançar cobrança</Button>
+              <Button variant="ghost" className="w-full border">Lançar cobrança</Button>
             </div>
           </form>
         </Card>
 
-        <Card>
-          <h3 className="mb-4 font-medium" style={{ color: "var(--color-ink)" }}>Lançar cobranças em lote</h3>
-          <form action={lancarCobrancasEmLote} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Competência (mês)" name="competencia" type="month" required defaultValue={new Date().toISOString().slice(0, 7)} />
-            <Field label="Dia de vencimento padrão" name="dia_vencimento" type="number" defaultValue={10} step="1" required />
-            <div className="sm:col-span-2">
-              <p className="text-xs mb-2" style={{ color: "var(--color-ink-soft)" }}>
-                Gera cobranças para todos os contratos ativos usando o valor do aluguel cadastrado.
-              </p>
-              <Button>Gerar cobranças do mês</Button>
-            </div>
-          </form>
-        </Card>
-
-        <Card>
-          <h3 className="mb-4 font-medium" style={{ color: "var(--color-ink)" }}>Atualizar atrasados</h3>
-          <p className="text-sm mb-4" style={{ color: "var(--color-ink-soft)" }}>
-            Marca como "atrasado" todos os pagamentos pendentes com data de vencimento anterior a hoje.
-          </p>
-          <form action={atualizarAtrasados}>
-            <Button variant="ghost">Atualizar status de atrasados</Button>
-          </form>
-        </Card>
       </div>
 
-      {/* Tabela de Recebimento PDV */}
+      {/* Tabela de Histórico e Movimentações */}
       <div className="mt-8">
-        <Table head={["Competência", "Contrato / Imóvel", "Inquilino", "Valor aluguel", "Total pago", "Saldo a pagar", "Status", "Lançar Entrada PDV (Recebimento)", "Recibo Impresso"]}>
+        <h3 className="text-base font-semibold mb-3 text-gray-800">Histórico de Movimentações e Caixa</h3>
+        <Table head={["Competência", "Contrato / Imóvel", "Inquilino", "Valor aluguel", "Total pago", "Saldo a pagar", "Status", "Histórico de entradas / Recibos PDV", "Recibo Impresso", "Ações"]}>
           {(pagamentos ?? []).map((p) => {
             const contrato = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
             const imovel = contrato?.imoveis;
@@ -242,52 +299,8 @@ export default async function PagamentosPage() {
                 <td className="px-4 py-2.5">
                   <StatusBadge status={p.status} />
                 </td>
-                <td className="px-4 py-2.5">
-                  {!isPago && !p.status?.includes("isento") ? (
-                    <form action={registrarPagamento} className="flex flex-col gap-1.5 p-2 bg-slate-50 border rounded-md">
-                      <input type="hidden" name="id" value={String(p.id)} />
-                      <div className="flex items-center gap-1">
-                        <input
-                          name="valor_pago"
-                          type="number"
-                          step="0.01"
-                          placeholder="Valor recebido"
-                          defaultValue={saldoRestante || valorBase}
-                          required
-                          className="w-28 rounded border px-2 py-1 text-xs bg-white font-bold"
-                        />
-                        <select
-                          name="forma_pagamento"
-                          className="rounded border px-2 py-1 text-xs bg-white"
-                          defaultValue="PIX"
-                        >
-                          <option value="PIX">PIX</option>
-                          <option value="Dinheiro">Dinheiro</option>
-                          <option value="Cartão de Débito">Débito</option>
-                          <option value="Cartão de Crédito">Crédito</option>
-                          <option value="Transferência Bancária">Transferência</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <input
-                          name="data_pagamento"
-                          type="date"
-                          required
-                          defaultValue={new Date().toISOString().split("T")[0]}
-                          className="rounded border px-1.5 py-1 text-xs bg-white"
-                        />
-                        <input
-                          name="observacoes"
-                          type="text"
-                          placeholder="Obs (opcional)"
-                          className="w-full rounded border px-1.5 py-1 text-xs bg-white"
-                        />
-                        <Button variant="primary">Confirmar e Gerar Recibo</Button>
-                      </div>
-                    </form>
-                  ) : (
-                    <span className="text-xs text-gray-500 italic">Lançamentos finalizados</span>
-                  )}
+                <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-pre-line max-w-xs">
+                  {p.observacoes || "Nenhuma entrada lançada"}
                 </td>
                 <td className="px-4 py-2.5 text-center">
                   {valorPago > 0 ? (
@@ -302,6 +315,51 @@ export default async function PagamentosPage() {
                     <span className="text-xs text-gray-400">—</span>
                   )}
                 </td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-1">
+                    {/* Isentar */}
+                    {isPendente && (
+                      <form action={marcarIsento} className="inline">
+                        <input type="hidden" name="id" value={String(p.id)} />
+                        <Button variant="ghost" className="text-xs">Isentar</Button>
+                      </form>
+                    )}
+
+                    {/* Editor */}
+                    <RecordEditor
+                      entity="pagamentos"
+                      id={String(p.id)}
+                      fields={[
+                        { name: "competencia", label: "Competência", value: p.competencia ? String(p.competencia).slice(0, 7) : "", type: "month", required: true },
+                        { name: "valor_base", label: "Valor aluguel (R$)", value: valorBase, type: "number", step: "0.01", required: true },
+                        { name: "valor_pago", label: "Valor pago (R$)", value: valorPago, type: "number", step: "0.01" },
+                        { name: "data_vencimento", label: "Vencimento", value: p.data_vencimento, type: "date", required: true },
+                        { name: "data_pagamento", label: "Data do pagamento", value: p.data_pagamento, type: "date" },
+                        { name: "observacoes", label: "Histórico de Recibos / Obs", value: p.observacoes, kind: "textarea" },
+                        {
+                          name: "status",
+                          label: "Status",
+                          kind: "select",
+                          value: p.status,
+                          options: [
+                            { value: "pendente", label: "Pendente" },
+                            { value: "pago", label: "Pago" },
+                            { value: "atrasado", label: "Atrasado" },
+                            { value: "isento", label: "Isento" },
+                          ],
+                        },
+                      ]}
+                    />
+
+                    {/* Excluir */}
+                    {isPendente && (
+                      <form action={excluirPagamento} className="inline">
+                        <input type="hidden" name="id" value={String(p.id)} />
+                        <Button variant="ghost" className="text-xs text-red-600">Excluir</Button>
+                      </form>
+                    )}
+                  </div>
+                </td>
               </tr>
             );
           })}
@@ -309,7 +367,7 @@ export default async function PagamentosPage() {
 
         {pagamentos.length === 0 && (
           <div className="mt-8 text-center py-12" style={{ color: "var(--color-ink-soft)" }}>
-            Nenhum lançamento encontrado no caixa.
+            Nenhum lançamento no caixa.
           </div>
         )}
       </div>

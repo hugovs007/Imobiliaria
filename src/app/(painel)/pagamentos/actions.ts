@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 
 /**
  * Lança a cobrança mensal para um contrato específico.
- * Puxa automaticamente o valor_aluguel e dia_vencimento do contrato caso não sejam preenchidos explicitamente.
  */
 export async function lancarCobranca(formData: FormData): Promise<void> {
   try {
@@ -17,11 +16,8 @@ export async function lancarCobranca(formData: FormData): Promise<void> {
     let valorBase = parseFloat(String(formData.get("valor_base") || formData.get("valor_devido") || "0")) || 0;
     let dataVencimento = String(formData.get("data_vencimento") || "").trim();
 
-    if (!contratoId || !competencia) {
-      return;
-    }
+    if (!contratoId || !competencia) return;
 
-    // Se o valor ou vencimento não foram informados no form, puxa direto do contrato ativo
     if (valorBase <= 0 || !dataVencimento) {
       const { data: contratoData, error: contratoError } = await supabase
         .from("contratos")
@@ -29,14 +25,9 @@ export async function lancarCobranca(formData: FormData): Promise<void> {
         .eq("id", contratoId)
         .single();
 
-      if (contratoError || !contratoData) {
-        console.error("Erro ao carregar dados do contrato:", contratoError?.message);
-        return;
-      }
+      if (contratoError || !contratoData) return;
 
-      if (valorBase <= 0) {
-        valorBase = Number(contratoData.valor_aluguel || 0);
-      }
+      if (valorBase <= 0) valorBase = Number(contratoData.valor_aluguel || 0);
 
       if (!dataVencimento) {
         const [anoStr, mesStr] = competencia.split("-");
@@ -56,9 +47,7 @@ export async function lancarCobranca(formData: FormData): Promise<void> {
       .eq("competencia", competencia)
       .maybeSingle();
 
-    if (existing) {
-      return;
-    }
+    if (existing) return;
 
     const { error: insertError } = await supabase.from("pagamentos").insert({
       contrato_id: contratoId,
@@ -137,7 +126,7 @@ export async function lancarCobrancasEmLote(formData: FormData): Promise<void> {
 }
 
 /**
- * Registra cada movimentação/entrada financeira separadamente no histórico e atualiza o saldo restante.
+ * Registra a baixa de entrada do pagamento, grava o recibo individual e atualiza o saldo restante.
  */
 export async function registrarPagamento(formData: FormData): Promise<void> {
   try {
@@ -146,15 +135,15 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
     const id = String(formData.get("id") || formData.get("pagamento_id") || "").trim();
     if (!id) return;
 
-    const valorPagoNovo = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
-    if (valorPagoNovo <= 0) return;
+    const valorEntrada = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
+    if (valorEntrada <= 0) return;
 
     const valorDesconto = parseFloat(String(formData.get("valor_desconto") || "0")) || 0;
     const valorMultaJuros = parseFloat(String(formData.get("valor_multa_juros") || "0")) || 0;
     const dataPagamento = String(formData.get("data_pagamento") || new Date().toISOString().slice(0, 10)).trim();
     const observacaoNova = String(formData.get("observacoes") || "").trim();
 
-    // Busca o lançamento atual no banco de dados
+    // Busca o lançamento atual do banco
     const { data: pagamentoAtual, error: fetchError } = await supabase
       .from("pagamentos")
       .select("valor_base, valor_pago, data_vencimento, observacoes")
@@ -162,26 +151,22 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
       .single();
 
     if (fetchError || !pagamentoAtual) {
-      console.error("Erro ao buscar pagamento para registrar movimentação:", fetchError?.message);
+      console.error("Erro ao buscar pagamento para baixa:", fetchError?.message);
       return;
     }
 
     const valorBase = Number(pagamentoAtual.valor_base || 0);
     const valorJaPagoAnterior = Number(pagamentoAtual.valor_pago || 0);
-    
-    // Soma o novo valor pago ao acumulado
-    const totalPagoEfetivo = valorJaPagoAnterior + valorPagoNovo;
+    const totalPagoEfetivo = valorJaPagoAnterior + valorEntrada;
 
-    // Registra a linha do histórico da movimentação
     const dataFormatada = new Date(dataPagamento + "T00:00:00").toLocaleDateString("pt-BR");
-    const registroMovimentacao = `[${dataFormatada}] Entrada R$ ${valorPagoNovo.toFixed(2)}${
-      observacaoNova ? ` (${observacaoNova})` : ""
+    const registroRecibo = `[Recibo de R$ ${valorEntrada.toFixed(2)} em ${dataFormatada}]${
+      observacaoNova ? ` — ${observacaoNova}` : ""
     }`;
 
     const historicoAtual = pagamentoAtual.observacoes ? `${pagamentoAtual.observacoes}\n` : "";
-    const historicoAtualizado = `${historicoAtual}${registroMovimentacao}`;
+    const historicoAtualizado = `${historicoAtual}${registroRecibo}`;
 
-    // Avalia a quitação total
     const quitado = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01);
     const hoje = new Date().toISOString().slice(0, 10);
     const vencido = pagamentoAtual.data_vencimento < hoje;
@@ -202,11 +187,12 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
       .eq("id", id);
 
     if (updateError) {
-      console.error("Erro ao registrar movimentação de pagamento:", updateError.message);
+      console.error("Erro ao registrar entrada:", updateError.message);
       return;
     }
 
     revalidatePath("/pagamentos");
+    revalidatePath("/recibos");
     revalidatePath("/financeiro");
     revalidatePath("/");
   } catch (err: any) {

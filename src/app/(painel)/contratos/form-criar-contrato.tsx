@@ -75,7 +75,7 @@ export function FormCriarContrato({ imoveisParaExibir, listaInquilinos }: FormCr
       <TextArea label="Cláusulas especiais" name="clausulas_especiais" />
 
       <div className="sm:col-span-2">
-        <Button disabled={isPending}>
+        <Button type="submit">
           {isPending ? "Cadastrando..." : "Cadastrar contrato"}
         </Button>
       </div>

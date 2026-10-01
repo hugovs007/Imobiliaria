@@ -33,12 +33,11 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       return { success: false, error: "Informe a data de início do contrato." };
     }
 
-    // Garante um sufixo único para evitar violação de UNIQUE CONSTRAINT na coluna 'codigo'
     const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
     const sulfixoRandom = Math.floor(1000 + Math.random() * 9000);
-    const codigo = `${imovelCodigo}-${anoMes || "202610"}-${sulfixoRandom}`;
+    const codigoGerado = `${imovelCodigo}-${anoMes || "202610"}-${sulfixoRandom}`;
 
-    // 2. Mapeamento do Enum exato exigido pelo Postgres ('IGP-M', 'IPCA', 'Outro')
+    // 2. Mapeamento do Enum exato exigido pelo Postgres
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
@@ -60,9 +59,9 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 4. Inserção tratada
-    const payload = {
-      codigo,
+    // 4. Mapeamento usando 'codigo_contrato' conforme o schema original do banco
+    const payload: Record<string, any> = {
+      codigo_contrato: codigoGerado,
       imovel_id,
       inquilino_id,
       data_inicio: dataInicio,
@@ -77,7 +76,16 @@ export async function criarContrato(_prevState: ActionState | null, formData: Fo
       status: "ativo",
     };
 
-    const { error: insertError } = await supabase.from("contratos").insert([payload]);
+    // Tenta primeiro a inserção com codigo_contrato
+    let { error: insertError } = await supabase.from("contratos").insert([payload]);
+
+    // Fallback: se o banco esperar a coluna 'codigo' em vez de 'codigo_contrato'
+    if (insertError && insertError.code === "PGRST204" && insertError.message.includes("codigo_contrato")) {
+      delete payload.codigo_contrato;
+      payload.codigo = codigoGerado;
+      const resFallback = await supabase.from("contratos").insert([payload]);
+      insertError = resFallback.error;
+    }
 
     if (insertError) {
       console.error("Erro do Supabase ao inserir contrato:", insertError);

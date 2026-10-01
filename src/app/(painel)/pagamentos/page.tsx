@@ -43,7 +43,6 @@ export default async function PagamentosPage() {
           observacoes,
           contratos (
             id,
-            codigo,
             codigo_contrato,
             data_inicio,
             data_fim,
@@ -70,7 +69,6 @@ export default async function PagamentosPage() {
         .from("contratos")
         .select(`
           id,
-          codigo,
           codigo_contrato,
           ativo,
           valor_aluguel,
@@ -190,7 +188,7 @@ export default async function PagamentosPage() {
               required
               options={contratosVigentes.map((c) => ({
                 value: String(c.id),
-                label: `${c.codigo || c.codigo_contrato || c.id.slice(0, 8)} — ${formatarEnderecoImovel(c.imoveis)} — ${(c.inquilinos as any)?.nome || "Inquilino"}`,
+                label: `${c.codigo_contrato || c.id.slice(0, 8)} — ${formatarEnderecoImovel(c.imoveis)} — ${(c.inquilinos as any)?.nome || "Inquilino"}`,
               }))}
             />
             <Field label="Competência (mês)" name="competencia" type="month" required />
@@ -262,7 +260,7 @@ export default async function PagamentosPage() {
                   {p.competencia ? new Date(p.competencia).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }) : "—"}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs">
-                  {contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—"}
+                  {contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—"}
                 </td>
                 <td className="px-4 py-2.5">
                   {formatarEnderecoImovel(imovel)}

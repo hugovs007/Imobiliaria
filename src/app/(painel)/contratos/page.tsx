@@ -47,6 +47,23 @@ function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
 export default async function ContratosPage() {
   const supabase = await createClient();
 
+  // Executa encerramento automático de contratos com data_fim expirada
+  const hoje = new Date().toISOString().slice(0, 10);
+  const { data: expirados } = await supabase
+    .from("contratos")
+    .select("id, imovel_id")
+    .eq("ativo", true)
+    .not("data_fim", "is", null)
+    .lt("data_fim", hoje);
+
+  if (expirados && expirados.length > 0) {
+    const idsExpirados = expirados.map((e) => e.id);
+    const imoveisLiberar = expirados.map((e) => e.imovel_id);
+
+    await supabase.from("contratos").update({ ativo: false }).in("id", idsExpirados);
+    await supabase.from("imoveis").update({ status: "disponivel" }).in("id", imoveisLiberar);
+  }
+
   const [resContratos, resImoveis, resInquilinos, resReajustes] = await Promise.all([
     supabase
       .from("contratos")
@@ -69,9 +86,6 @@ export default async function ContratosPage() {
       .eq("status", "pendente"),
   ]);
 
-  if (resImoveis.error) console.error("Erro ao buscar imóveis:", resImoveis.error.message);
-  if (resInquilinos.error) console.error("Erro ao buscar inquilinos:", resInquilinos.error.message);
-
   const listaContratos = resContratos.data ?? [];
   const todosImoveis = resImoveis.data ?? [];
   const listaInquilinos = resInquilinos.data ?? [];
@@ -81,10 +95,6 @@ export default async function ContratosPage() {
     (i) => !i.status || i.status.toLowerCase() === "disponivel"
   );
   const imoveisParaExibir = imoveisDisponiveis.length > 0 ? imoveisDisponiveis : todosImoveis;
-
-  const contratosComSucessor = new Set(
-    listaContratos.flatMap((contrato) => (contrato.contrato_anterior_id ? [contrato.contrato_anterior_id] : []))
-  );
 
   return (
     <div>
@@ -165,15 +175,13 @@ export default async function ContratosPage() {
           ) : (
             listaContratos.map((c) => {
               const imovel = c.imoveis as unknown as ImovelContrato;
-              const possuiRenovacao = contratosComSucessor.has(c.id);
-              const statusNormalizado = (c.status || "").toLowerCase();
-              const contratoVigente = ["ativo", "renovado"].includes(statusNormalizado) && !possuiRenovacao;
-              const statusExibido = possuiRenovacao ? "encerrado" : (c.status || "ativo");
+              const valorExibido = c.valor_aluguel ?? c.valor_atual ?? c.valor_aluguel_atual ?? 0;
+              const contratoAtivo = c.ativo !== false;
 
               return (
                 <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
                   <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">
-                    {c.codigo || c.codigo_contrato || "—"}
+                    {c.codigo || c.codigo_contrato || c.id.slice(0, 8)}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-col">
@@ -188,22 +196,22 @@ export default async function ContratosPage() {
                   <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
                   <td className="px-4 py-2.5">{c.data_inicio ? new Date(c.data_inicio).toLocaleDateString("pt-BR") : "—"}</td>
                   <td className="px-4 py-2.5">
-                    <Money value={c.valor_atual ?? c.valor_aluguel_atual} />
+                    <Money value={valorExibido} />
                   </td>
                   <td className="px-4 py-2.5 uppercase">{c.indice_reajuste || "—"}</td>
                   <td className="px-4 py-2.5">
-                    <StatusBadge status={statusExibido} />
+                    <StatusBadge status={contratoAtivo ? "ativo" : "encerrado"} />
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-col items-start gap-2">
-                      {contratoVigente && (
+                      {contratoAtivo && (
                         <>
-                          <CloseContractForm contractId={c.id} contractCode={c.codigo || c.codigo_contrato || c.id} />
+                          <CloseContractForm contractId={c.id} contractCode={c.codigo || c.codigo_contrato || c.id.slice(0, 8)} />
                           <RenewalForm
                             contractId={c.id}
-                            contractCode={c.codigo || c.codigo_contrato || c.id}
+                            contractCode={c.codigo || c.codigo_contrato || c.id.slice(0, 8)}
                             startDate={dataSeguinte(c.data_fim)}
-                            currentRent={c.valor_atual ?? c.valor_aluguel_atual ?? 0}
+                            currentRent={valorExibido}
                             index={c.indice_reajuste || "IGP-M"}
                           />
                         </>
@@ -215,7 +223,7 @@ export default async function ContratosPage() {
                           { name: "data_inicio", label: "Data de início", value: c.data_inicio, type: "date", required: true },
                           { name: "data_fim", label: "Data de fim", value: c.data_fim, type: "date" },
                           { name: "dia_vencimento", label: "Dia de vencimento", value: c.dia_vencimento, type: "number", required: true },
-                          { name: "valor_atual", label: "Aluguel atual (R$)", value: c.valor_atual ?? c.valor_aluguel_atual, type: "number", step: "0.01", required: true },
+                          { name: "valor_aluguel", label: "Aluguel (R$)", value: valorExibido, type: "number", step: "0.01", required: true },
                           {
                             name: "indice_reajuste",
                             label: "Índice de reajuste",

@@ -130,8 +130,24 @@ export async function encerrarContrato(formData: FormData): Promise<{ error: str
   try {
     const supabase = await createClient();
     const contratoId = String(formData.get("id") || "");
-    const { error } = await supabase.rpc("encerrar_contrato", { p_contrato_id: contratoId });
+    
+    // Busca o imóvel associado para liberar status
+    const { data: contrato } = await supabase
+      .from("contratos")
+      .select("imovel_id")
+      .eq("id", contratoId)
+      .single();
+
+    const { error } = await supabase
+      .from("contratos")
+      .update({ ativo: false })
+      .eq("id", contratoId);
+
     if (error) return { error: error.message };
+
+    if (contrato?.imovel_id) {
+      await supabase.from("imoveis").update({ status: "disponivel" }).eq("id", contrato.imovel_id);
+    }
 
     revalidatePath("/contratos");
     revalidatePath("/imoveis");

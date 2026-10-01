@@ -57,7 +57,7 @@ export function FormCriarContrato({ imoveisParaExibir, listaInquilinos }: FormCr
       <Field label="Data de início" name="data_inicio" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
       <Field label="Data de fim (opcional)" name="data_fim" type="date" />
       <Field label="Dia de vencimento (1-31)" name="dia_vencimento" type="number" required defaultValue={10} />
-      <Field label="Valor do aluguel (R$)" name="valor_atual" type="number" step="0.01" required />
+      <Field label="Valor do aluguel (R$)" name="valor_aluguel" type="number" step="0.01" required />
 
       <Select
         label="Índice de reajuste"

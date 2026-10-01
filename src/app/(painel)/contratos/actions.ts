@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export async function criarContrato(formData: FormData): Promise<{ error?: string }> {
+export async function criarContrato(formData: FormData): Promise<void> {
   try {
     const supabase = await createClient();
 
@@ -11,7 +11,7 @@ export async function criarContrato(formData: FormData): Promise<{ error?: strin
     const inquilino_id = String(formData.get("inquilino_id") || "").trim();
 
     if (!imovel_id || !inquilino_id) {
-      return { error: "Selecione um imóvel e um inquilino válidos." };
+      throw new Error("Selecione um imóvel e um inquilino válidos.");
     }
 
     // 1. Busca o código do imóvel para gerar o código do contrato
@@ -26,13 +26,13 @@ export async function criarContrato(formData: FormData): Promise<{ error?: strin
     const anoMes = dataInicio.replace(/-/g, "").slice(0, 6);
     const codigo = `${imovelCodigo}-${anoMes || "202601"}`;
 
-    // 2. Enum exato exigido pelo Postgres
+    // 2. Enum exato do Postgres
     const rawIndice = String(formData.get("indice_reajuste") || "IGP-M").toUpperCase();
     let indice_reajuste: "IGP-M" | "IPCA" | "Outro" = "IGP-M";
     if (rawIndice.includes("IPCA")) indice_reajuste = "IPCA";
     else if (rawIndice.includes("OUTRO")) indice_reajuste = "Outro";
 
-    // 3. Formatação rigorosa dos dados
+    // 3. Formatação dos valores
     const valor_atual = Number(formData.get("valor_aluguel_atual") || formData.get("valor_atual") || 0);
     const dia_vencimento = Number(formData.get("dia_vencimento") || 1);
     const periodicidade_reajuste_meses = Number(formData.get("periodicidade_reajuste_meses") || 12);
@@ -43,13 +43,13 @@ export async function criarContrato(formData: FormData): Promise<{ error?: strin
     const dataFimRaw = String(formData.get("data_fim") || "").trim();
     const data_fim = dataFimRaw !== "" ? dataFimRaw : null;
 
-    // 4. Inserção apenas com as colunas reais da tabela 'contratos'
+    // 4. Inserção no Supabase
     const { error: insertError } = await supabase.from("contratos").insert([{
       codigo,
       imovel_id,
       inquilino_id,
       data_inicio: dataInicio,
-      data_fim: data_fim as unknown as string, // permite null se a data for opcional
+      data_fim: data_fim as unknown as string,
       dia_vencimento,
       valor_atual,
       indice_reajuste,
@@ -61,7 +61,7 @@ export async function criarContrato(formData: FormData): Promise<{ error?: strin
 
     if (insertError) {
       console.error("Erro no Supabase (Contratos):", insertError);
-      return { error: insertError.message };
+      throw new Error(insertError.message);
     }
 
     // 5. Atualiza o status do imóvel para alugado
@@ -70,10 +70,9 @@ export async function criarContrato(formData: FormData): Promise<{ error?: strin
     revalidatePath("/contratos");
     revalidatePath("/imoveis");
     revalidatePath("/");
-    return {};
   } catch (err: any) {
     console.error("Erro na action criarContrato:", err);
-    return { error: err?.message || "Ocorreu um erro interno ao cadastrar o contrato." };
+    throw new Error(err?.message || "Ocorreu um erro interno ao cadastrar o contrato.");
   }
 }
 

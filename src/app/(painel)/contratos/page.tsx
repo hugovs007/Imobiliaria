@@ -44,10 +44,18 @@ function enderecoCompleto(imovel: ImovelContrato | null | undefined) {
   return partes.length > 0 ? partes.join(" - ") : "Endereço não informado";
 }
 
+function extrairCodigoExibicao(c: any): string {
+  if (c.clausulas_especiais && c.clausulas_especiais.includes("REN001-")) {
+    const match = c.clausulas_especiais.match(/REN001-[A-Za-z0-9]+/);
+    if (match) return match[0];
+  }
+  return c.codigo || c.codigo_contrato || c.id.slice(0, 8);
+}
+
 export default async function ContratosPage() {
   const supabase = await createClient();
 
-  // Executa encerramento automático de contratos com data_fim expirada
+  // Encerramento automático de contratos vencidos
   const hoje = new Date().toISOString().slice(0, 10);
   const { data: expirados } = await supabase
     .from("contratos")
@@ -177,11 +185,12 @@ export default async function ContratosPage() {
               const imovel = c.imoveis as unknown as ImovelContrato;
               const valorExibido = c.valor_aluguel ?? c.valor_atual ?? c.valor_aluguel_atual ?? 0;
               const contratoAtivo = c.ativo !== false;
+              const codigoContrato = extrairCodigoExibicao(c);
 
               return (
                 <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
-                  <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">
-                    {c.codigo || c.codigo_contrato || c.id.slice(0, 8)}
+                  <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs font-bold text-emerald-800">
+                    {codigoContrato}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-col">
@@ -195,7 +204,7 @@ export default async function ContratosPage() {
                   </td>
                   <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
                   <td className="px-4 py-2.5">{c.data_inicio ? new Date(c.data_inicio).toLocaleDateString("pt-BR") : "—"}</td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-4 py-2.5 font-semibold">
                     <Money value={valorExibido} />
                   </td>
                   <td className="px-4 py-2.5 uppercase">{c.indice_reajuste || "—"}</td>
@@ -206,10 +215,10 @@ export default async function ContratosPage() {
                     <div className="flex flex-col items-start gap-2">
                       {contratoAtivo && (
                         <>
-                          <CloseContractForm contractId={c.id} contractCode={c.codigo || c.codigo_contrato || c.id.slice(0, 8)} />
+                          <CloseContractForm contractId={c.id} contractCode={codigoContrato} />
                           <RenewalForm
                             contractId={c.id}
-                            contractCode={c.codigo || c.codigo_contrato || c.id.slice(0, 8)}
+                            contractCode={codigoContrato}
                             startDate={dataSeguinte(c.data_fim)}
                             currentRent={valorExibido}
                             index={c.indice_reajuste || "IGP-M"}

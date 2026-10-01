@@ -18,6 +18,17 @@ function formatarEnderecoImovel(imovel: any): string {
   return partes.length > 0 ? partes.join(" - ") : "Endereço não informado";
 }
 
+function formatarDataSegura(dataRaw: string | null | undefined, opcoes?: Intl.DateTimeFormatOptions): string {
+  if (!dataRaw) return "—";
+  try {
+    const dataObj = new Date(dataRaw);
+    if (isNaN(dataObj.getTime())) return "—";
+    return dataObj.toLocaleDateString("pt-BR", opcoes);
+  } catch {
+    return "—";
+  }
+}
+
 export default async function PagamentosPage() {
   const supabase = await createClient();
 
@@ -201,24 +212,31 @@ export default async function PagamentosPage() {
             const isPago = p.status === "pago";
             const isPendente = p.status === "pendente";
 
-            // Identificação da parcela
+            // Identificação tratada da parcela
             let identificacaoParcela = "—";
-            if (contrato?.data_inicio && contrato?.data_fim) {
-              const dataInicio = new Date(contrato.data_inicio);
-              const dataFim = new Date(contrato.data_fim);
-              const dataCompetencia = new Date(p.competencia);
-              const diferencaMeses = (dataFim.getFullYear() - dataInicio.getFullYear()) * 12 + dataFim.getMonth() - dataInicio.getMonth();
-              const mesesContrato = Math.max(1, diferencaMeses + (dataFim.getDate() >= dataInicio.getDate() ? 1 : 0));
-              const parcelaAtual = (dataCompetencia.getFullYear() - dataInicio.getFullYear()) * 12 + dataCompetencia.getMonth() - dataInicio.getMonth() + 1;
-              if (mesesContrato > 0 && parcelaAtual > 0 && parcelaAtual <= mesesContrato) {
-                identificacaoParcela = `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`;
+            if (contrato?.data_inicio && contrato?.data_fim && p.competencia) {
+              try {
+                const dataInicio = new Date(contrato.data_inicio);
+                const dataFim = new Date(contrato.data_fim);
+                const dataCompetencia = new Date(p.competencia);
+                
+                if (!isNaN(dataInicio.getTime()) && !isNaN(dataFim.getTime()) && !isNaN(dataCompetencia.getTime())) {
+                  const diferencaMeses = (dataFim.getFullYear() - dataInicio.getFullYear()) * 12 + dataFim.getMonth() - dataInicio.getMonth();
+                  const mesesContrato = Math.max(1, diferencaMeses + (dataFim.getDate() >= dataInicio.getDate() ? 1 : 0));
+                  const parcelaAtual = (dataCompetencia.getFullYear() - dataInicio.getFullYear()) * 12 + dataCompetencia.getMonth() - dataInicio.getMonth() + 1;
+                  if (mesesContrato > 0 && parcelaAtual > 0 && parcelaAtual <= mesesContrato) {
+                    identificacaoParcela = `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`;
+                  }
+                }
+              } catch {
+                identificacaoParcela = "—";
               }
             }
 
             return (
               <tr key={p.id} style={{ borderTop: "1px solid var(--color-line)" }}>
                 <td className="px-4 py-2.5 whitespace-nowrap">
-                  {p.competencia ? new Date(p.competencia).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" }) : "—"}
+                  {formatarDataSegura(p.competencia, { month: "2-digit", year: "numeric" })}
                 </td>
                 <td className="px-4 py-2.5 font-mono text-xs">
                   {contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—"}
@@ -248,10 +266,10 @@ export default async function PagamentosPage() {
                   {identificacaoParcela}
                 </td>
                 <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">
-                  {p.data_vencimento ? new Date(p.data_vencimento).toLocaleDateString("pt-BR") : "—"}
+                  {formatarDataSegura(p.data_vencimento)}
                 </td>
                 <td className="px-4 py-2.5 whitespace-nowrap font-mono text-xs">
-                  {p.data_pagamento ? new Date(p.data_pagamento).toLocaleDateString("pt-BR") : "—"}
+                  {formatarDataSegura(p.data_pagamento)}
                 </td>
                 <td className="px-4 py-2.5 text-xs text-gray-600">
                   {p.observacoes || "—"}
@@ -311,7 +329,7 @@ export default async function PagamentosPage() {
                       entity="pagamentos"
                       id={String(p.id)}
                       fields={[
-                        { name: "competencia", label: "Competência", value: p.competencia ? p.competencia.slice(0, 7) : "", type: "month", required: true },
+                        { name: "competencia", label: "Competência", value: p.competencia ? String(p.competencia).slice(0, 7) : "", type: "month", required: true },
                         { name: "valor_base", label: "Valor base (R$)", value: valorBase, type: "number", step: "0.01", required: true },
                         { name: "valor_pago", label: "Valor pago (R$)", value: valorPago, type: "number", step: "0.01" },
                         { name: "data_vencimento", label: "Vencimento", value: p.data_vencimento, type: "date", required: true },

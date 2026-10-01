@@ -126,7 +126,7 @@ export async function lancarCobrancasEmLote(formData: FormData): Promise<void> {
 }
 
 /**
- * PDV: Registra o recebimento de uma entrada financeira, acumula os valores e gera o comprovante de recibo.
+ * Registra o recebimento de uma entrada no PDV, grava no histórico de movimentações e atualiza a parcela.
  */
 export async function registrarPagamento(formData: FormData): Promise<void> {
   try {
@@ -138,14 +138,14 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
     const valorEntrada = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
     if (valorEntrada <= 0) return;
 
-    const formaPagamento = String(formData.get("forma_pagamento") || "PIX / Dinheiro").trim();
+    const formaPagamento = String(formData.get("forma_pagamento") || "PIX").trim();
     const dataPagamento = String(formData.get("data_pagamento") || new Date().toISOString().slice(0, 10)).trim();
     const observacaoNova = String(formData.get("observacoes") || "").trim();
 
     // Busca o lançamento da mensalidade no banco
     const { data: pagamentoAtual, error: fetchError } = await supabase
       .from("pagamentos")
-      .select("valor_base, valor_pago, data_vencimento, observacoes")
+      .select("valor_base, valor_pago, data_vencimento")
       .eq("id", id)
       .single();
 
@@ -156,19 +156,28 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
 
     const valorBase = Number(pagamentoAtual.valor_base || 0);
     const valorJaPagoAnterior = Number(pagamentoAtual.valor_pago || 0);
+    const saldoAnterior = Math.max(0, valorBase - valorJaPagoAnterior);
     const totalPagoEfetivo = valorJaPagoAnterior + valorEntrada;
     const saldoRestanteAtual = Math.max(0, valorBase - totalPagoEfetivo);
 
-    const dataFormatada = new Date(dataPagamento + "T00:00:00").toLocaleDateString("pt-BR");
-    
-    // Montagem do comprovante PDV armazenado
-    const reciboPDV = `RECIBO PDV [${dataFormatada}] | Entrada: R$ ${valorEntrada.toFixed(2)} | Forma: ${formaPagamento} | Saldo Restante: R$ ${saldoRestanteAtual.toFixed(2)}${
-      observacaoNova ? ` | Obs: ${observacaoNova}` : ""
-    }`;
+    // 1. Grava o registro da movimentação individual
+    const { error: movError } = await supabase
+      .from("movimentacoes_pagamento")
+      .insert({
+        pagamento_id: id,
+        valor_pago: valorEntrada,
+        forma_pagamento: formaPagamento,
+        data_pagamento: dataPagamento,
+        saldo_anterior: saldoAnterior,
+        saldo_restante: saldoRestanteAtual,
+        observacoes: observacaoNova || null,
+      });
 
-    const historicoAnterior = pagamentoAtual.observacoes ? `${pagamentoAtual.observacoes}\n` : "";
-    const historicoAtualizado = `${historicoAnterior}${reciboPDV}`;
+    if (movError) {
+      console.error("Erro ao gravar movimentação do PDV:", movError.message);
+    }
 
+    // 2. Atualiza a parcela global
     const quitado = totalPagoEfetivo >= (valorBase - 0.01);
     const hoje = new Date().toISOString().slice(0, 10);
     const vencido = pagamentoAtual.data_vencimento < hoje;
@@ -180,19 +189,17 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
       .update({
         valor_pago: totalPagoEfetivo,
         data_pagamento: dataPagamento,
-        observacoes: historicoAtualizado,
         status: novoStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
 
     if (updateError) {
-      console.error("Erro ao processar recebimento no PDV:", updateError.message);
+      console.error("Erro ao atualizar parcela no PDV:", updateError.message);
       return;
     }
 
     revalidatePath("/pagamentos");
-    revalidatePath(`/recibos/${id}`);
     revalidatePath("/financeiro");
     revalidatePath("/");
   } catch (err: any) {

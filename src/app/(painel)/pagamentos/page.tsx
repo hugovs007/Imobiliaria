@@ -47,7 +47,8 @@ export default async function PagamentosPage() {
             *,
             imoveis (*),
             inquilinos (*)
-          )
+          ),
+          movimentacoes_pagamento (*)
         `
         )
         .order("competencia", { ascending: false }),
@@ -74,14 +75,12 @@ export default async function PagamentosPage() {
 
   const contratosVigentes = contratos.filter((c) => c.ativo !== false);
 
-  // Cobranças pendentes ou com saldo a pagar para o formulário de Entrada PDV
   const cobrancasAbertas = pagamentos.filter((p) => {
     const vBase = Number(p.valor_base || 0);
     const vPago = Number(p.valor_pago || 0);
     return (vBase - vPago) > 0.009 && p.status !== "isento";
   });
 
-  // Estatísticas
   const stats = {
     total: pagamentos.length,
     pagos: pagamentos.filter((p) => p.status === "pago").length,
@@ -258,7 +257,7 @@ export default async function PagamentosPage() {
       {/* Tabela de Histórico e Movimentações */}
       <div className="mt-8">
         <h3 className="text-base font-semibold mb-3 text-gray-800">Histórico de Movimentações e Caixa</h3>
-        <Table head={["Competência", "Contrato / Imóvel", "Inquilino", "Valor aluguel", "Total pago", "Saldo a pagar", "Status", "Histórico de entradas / Recibos PDV", "Recibo Impresso", "Ações"]}>
+        <Table head={["Competência", "Contrato / Imóvel", "Inquilino", "Valor aluguel", "Total pago", "Saldo a pagar", "Status", "Entradas / Recibos Emitidos", "Ações"]}>
           {(pagamentos ?? []).map((p) => {
             const contrato = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
             const imovel = contrato?.imoveis;
@@ -268,8 +267,8 @@ export default async function PagamentosPage() {
             const valorPago = Number(p.valor_pago || 0);
             const saldoRestante = Math.max(0, valorBase - valorPago);
 
-            const isPago = p.status === "pago";
             const isPendente = p.status === "pendente" || p.status === "atrasado";
+            const movimentacoes: any[] = Array.isArray(p.movimentacoes_pagamento) ? p.movimentacoes_pagamento : [];
 
             return (
               <tr key={p.id} style={{ borderTop: "1px solid var(--color-line)" }}>
@@ -301,20 +300,28 @@ export default async function PagamentosPage() {
                 <td className="px-4 py-2.5">
                   <StatusBadge status={p.status} />
                 </td>
-                <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-pre-line max-w-xs">
-                  {p.observacoes || "Nenhuma entrada lançada"}
-                </td>
-                <td className="px-4 py-2.5 text-center">
-                  {valorPago > 0 ? (
-                    <Link
-                      href={`/recibos/${p.id}`}
-                      target="_blank"
-                      className="inline-flex items-center gap-1 bg-teal-600 text-white font-medium text-xs px-3 py-1.5 rounded hover:bg-teal-700 transition"
-                    >
-                      🖨️ Imprimir Recibo
-                    </Link>
+                <td className="px-4 py-2.5 text-xs">
+                  {movimentacoes.length > 0 ? (
+                    <div className="flex flex-col gap-1.5">
+                      {movimentacoes.map((mov) => (
+                        <div key={mov.id} className="flex items-center justify-between gap-2 p-1.5 bg-slate-50 border rounded text-xs">
+                          <div>
+                            <span className="font-bold text-emerald-700">R$ {Number(mov.valor_pago).toFixed(2)}</span>
+                            <span className="text-gray-500 ml-1">({mov.forma_pagamento || "PIX"})</span>
+                            <span className="text-gray-400 block text-[10px]">{formatarDataSegura(mov.data_pagamento)} — Resta: R$ {Number(mov.saldo_restante).toFixed(2)}</span>
+                          </div>
+                          <Link
+                            href={`/recibos/${mov.id}?tipo=movimentacao`}
+                            target="_blank"
+                            className="bg-teal-600 hover:bg-teal-700 text-white font-medium px-2 py-1 rounded text-[11px] whitespace-nowrap inline-flex items-center gap-1"
+                          >
+                            🖨️ Recibo
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <span className="text-xs text-gray-400">—</span>
+                    <span className="text-gray-400 italic">Nenhuma entrada lançada</span>
                   )}
                 </td>
                 <td className="px-4 py-2.5">
@@ -337,7 +344,6 @@ export default async function PagamentosPage() {
                         { name: "valor_pago", label: "Valor pago (R$)", value: valorPago, type: "number", step: "0.01" },
                         { name: "data_vencimento", label: "Vencimento", value: p.data_vencimento, type: "date", required: true },
                         { name: "data_pagamento", label: "Data do pagamento", value: p.data_pagamento, type: "date" },
-                        { name: "observacoes", label: "Histórico de Recibos / Obs", value: p.observacoes, kind: "textarea" },
                         {
                           name: "status",
                           label: "Status",

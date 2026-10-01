@@ -108,7 +108,7 @@ export async function lancarCobrancasEmLote(formData: FormData): Promise<void> {
 }
 
 /**
- * Registra a baixa de um pagamento.
+ * Registra a baixa (parcial ou total) de um pagamento.
  */
 export async function registrarPagamento(formData: FormData): Promise<void> {
   try {
@@ -117,27 +117,40 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
     const id = String(formData.get("id") || formData.get("pagamento_id") || "").trim();
     if (!id) return;
 
-    const valorPago = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
-    if (valorPago <= 0) return;
+    const valorPagoNovo = parseFloat(String(formData.get("valor_pago") || "0")) || 0;
+    if (valorPagoNovo <= 0) return;
 
     const valorDesconto = parseFloat(String(formData.get("valor_desconto") || "0")) || 0;
     const valorMultaJuros = parseFloat(String(formData.get("valor_multa_juros") || "0")) || 0;
     const dataPagamento = String(formData.get("data_pagamento") || new Date().toISOString().slice(0, 10)).trim();
     const observacoes = String(formData.get("observacoes") || "").trim() || null;
 
-    const { data: pagamentoData, error: fetchError } = await supabase
+    // Busca o lançamento atual no banco para obter o valor já pago e a data de vencimento
+    const { data: pagamentoAtual, error: fetchError } = await supabase
       .from("pagamentos")
-      .select("valor_base, valor_pago")
+      .select("valor_base, valor_pago, data_vencimento")
       .eq("id", id)
       .single();
 
-    if (fetchError) return;
+    if (fetchError || !pagamentoAtual) {
+      console.error("Erro ao buscar pagamento para baixa:", fetchError?.message);
+      return;
+    }
 
-    const valorBase = pagamentoData?.valor_base ?? 0;
-    const valorJaPago = pagamentoData?.valor_pago ?? 0;
-    const totalPagoEfetivo = valorJaPago + valorPago;
+    const valorBase = Number(pagamentoAtual.valor_base || 0);
+    const valorJaPagoAnterior = Number(pagamentoAtual.valor_pago || 0);
+    
+    // Soma o novo valor pago ao que já tinha sido pago anteriormente
+    const totalPagoEfetivo = valorJaPagoAnterior + valorPagoNovo;
 
-    const novoStatus = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01) ? "pago" : "pendente";
+    // Verifica se a dívida foi quitada (considerando eventuais descontos)
+    const quitado = (totalPagoEfetivo + valorDesconto) >= (valorBase - 0.01);
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    const vencido = pagamentoAtual.data_vencimento < hoje;
+
+    // Se quitou -> 'pago'. Se ainda resta saldo e venceu -> 'atrasado'. Caso contrário -> 'pendente'.
+    const novoStatus = quitado ? "pago" : (vencido ? "atrasado" : "pendente");
 
     const { error: updateError } = await supabase
       .from("pagamentos")
@@ -153,7 +166,7 @@ export async function registrarPagamento(formData: FormData): Promise<void> {
       .eq("id", id);
 
     if (updateError) {
-      console.error("Erro ao atualizar pagamento:", updateError.message);
+      console.error("Erro ao registrar pagamento parcial:", updateError.message);
       return;
     }
 

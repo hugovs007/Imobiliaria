@@ -27,6 +27,30 @@ function formatarDataBR(dataRaw: string | null | undefined): string {
   }
 }
 
+function calcularIdentificacaoParcela(contrato: any, competencia: string): string {
+  if (!contrato?.data_inicio || !contrato?.data_fim || !competencia) return "—";
+  try {
+    const dataInicio = new Date(contrato.data_inicio);
+    const dataFim = new Date(contrato.data_fim);
+    const dataCompetencia = new Date(competencia);
+    
+    if (isNaN(dataInicio.getTime()) || isNaN(dataFim.getTime()) || isNaN(dataCompetencia.getTime())) {
+      return "—";
+    }
+
+    const diferencaMeses = (dataFim.getFullYear() - dataInicio.getFullYear()) * 12 + dataFim.getMonth() - dataInicio.getMonth();
+    const mesesContrato = Math.max(1, diferencaMeses + (dataFim.getDate() >= dataInicio.getDate() ? 1 : 0));
+    const parcelaAtual = (dataCompetencia.getFullYear() - dataInicio.getFullYear()) * 12 + dataCompetencia.getMonth() - dataInicio.getMonth() + 1;
+    
+    if (mesesContrato > 0 && parcelaAtual > 0 && parcelaAtual <= mesesContrato) {
+      return `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`;
+    }
+  } catch {
+    return "—";
+  }
+  return "—";
+}
+
 export default async function ReciboPage(props: {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -84,14 +108,17 @@ export default async function ReciboPage(props: {
         inquilino = inqData;
       }
 
+      const parcelaFormatada = calcularIdentificacaoParcela(contrato, pagamento?.competencia);
+
       dadosRecibo = {
         titulo: "RECIBO DE PAGAMENTO",
-        subtitulo: "Comprovante de Entrada Financeira / PDV",
+        subtitulo: `Comprovante de Entrada Financeira / PDV (Parcela ${parcelaFormatada})`,
         codigo: contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—",
         inquilino: inquilino?.nome || "Inquilino não informado",
         cpfCnpj: inquilino?.cpf || inquilino?.cnpj || "—",
         enderecoImovel: formatarEnderecoImovel(imovel),
         competencia: formatarDataBR(pagamento?.competencia),
+        parcela: parcelaFormatada,
         valorBase: Number(pagamento?.valor_base || 0),
         valorRecebido: Number(mov.valor_pago || 0),
         formaPagamento: mov.forma_pagamento || "PIX",
@@ -131,15 +158,17 @@ export default async function ReciboPage(props: {
 
       const valorBase = Number(pagamento?.valor_base || 0);
       const valorPago = Number(pagamento?.valor_pago || 0);
+      const parcelaFormatada = calcularIdentificacaoParcela(contrato, pagamento?.competencia);
 
       dadosRecibo = {
         titulo: "RECIBO DE PARCELA / ALUGUEL",
-        subtitulo: "Comprovante Geral de Lançamento",
+        subtitulo: `Comprovante Geral de Lançamento (Parcela ${parcelaFormatada})`,
         codigo: contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—",
         inquilino: inquilino?.nome || "Inquilino não informado",
         cpfCnpj: inquilino?.cpf || inquilino?.cnpj || "—",
         enderecoImovel: formatarEnderecoImovel(imovel),
         competencia: formatarDataBR(pagamento?.competencia),
+        parcela: parcelaFormatada,
         valorBase,
         valorRecebido: valorPago,
         formaPagamento: "Diversas",
@@ -157,7 +186,7 @@ export default async function ReciboPage(props: {
           <PrintButton />
         </div>
 
-        {/* Modelo de Recibo com regras de estilo para papel */}
+        {/* Modelo de Recibo */}
         <div className="bg-white border-2 border-gray-800 rounded-lg p-8 w-full max-w-2xl shadow-lg print:shadow-none print:border-black print:w-full print:m-0 print:absolute print:inset-0 print:rounded-none">
           <div className="border-b-2 border-gray-800 pb-4 mb-6 flex justify-between items-center">
             <div>
@@ -182,7 +211,11 @@ export default async function ReciboPage(props: {
             </div>
           </div>
 
-          <div className="bg-gray-50 border border-gray-300 rounded p-4 mb-6 grid grid-cols-2 gap-4 text-sm print:bg-white print:border-black">
+          <div className="bg-gray-50 border border-gray-300 rounded p-4 mb-6 grid grid-cols-3 gap-4 text-sm print:bg-white print:border-black">
+            <div>
+              <span className="text-xs text-gray-500 block">Parcela</span>
+              <strong className="text-emerald-700 text-base">{dadosRecibo.parcela}</strong>
+            </div>
             <div>
               <span className="text-xs text-gray-500 block">Competência (Mês)</span>
               <strong>{dadosRecibo.competencia}</strong>
@@ -191,11 +224,11 @@ export default async function ReciboPage(props: {
               <span className="text-xs text-gray-500 block">Data do Pagamento</span>
               <strong>{dadosRecibo.dataPagamento}</strong>
             </div>
-            <div>
+            <div className="col-span-1.5">
               <span className="text-xs text-gray-500 block">Forma de Pagamento</span>
               <strong className="text-emerald-700">{dadosRecibo.formaPagamento}</strong>
             </div>
-            <div>
+            <div className="col-span-1.5">
               <span className="text-xs text-gray-500 block">Valor Total do Aluguel</span>
               <span>R$ {dadosRecibo.valorBase.toFixed(2)}</span>
             </div>

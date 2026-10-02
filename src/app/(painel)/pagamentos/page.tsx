@@ -29,6 +29,30 @@ function formatarDataSegura(dataRaw: string | null | undefined, opcoes?: Intl.Da
   }
 }
 
+function calcularIdentificacaoParcela(contrato: any, competencia: string): string {
+  if (!contrato?.data_inicio || !contrato?.data_fim || !competencia) return "—";
+  try {
+    const dataInicio = new Date(contrato.data_inicio);
+    const dataFim = new Date(contrato.data_fim);
+    const dataCompetencia = new Date(competencia);
+    
+    if (isNaN(dataInicio.getTime()) || isNaN(dataFim.getTime()) || isNaN(dataCompetencia.getTime())) {
+      return "—";
+    }
+
+    const diferencaMeses = (dataFim.getFullYear() - dataInicio.getFullYear()) * 12 + dataFim.getMonth() - dataInicio.getMonth();
+    const mesesContrato = Math.max(1, diferencaMeses + (dataFim.getDate() >= dataInicio.getDate() ? 1 : 0));
+    const parcelaAtual = (dataCompetencia.getFullYear() - dataInicio.getFullYear()) * 12 + dataCompetencia.getMonth() - dataInicio.getMonth() + 1;
+    
+    if (mesesContrato > 0 && parcelaAtual > 0 && parcelaAtual <= mesesContrato) {
+      return `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`;
+    }
+  } catch {
+    return "—";
+  }
+  return "—";
+}
+
 export default async function PagamentosPage() {
   const supabase = await createClient();
 
@@ -181,9 +205,10 @@ export default async function PagamentosPage() {
                       const inq = c?.inquilinos?.nome || "Inquilino";
                       const saldo = Math.max(0, Number(p.valor_base || 0) - Number(p.valor_pago || 0));
                       const comp = formatarDataSegura(p.competencia, { month: "2-digit", year: "numeric" });
+                      const parcStr = calcularIdentificacaoParcela(c, p.competencia);
                       return {
                         value: String(p.id),
-                        label: `${comp} — ${c?.codigo || c?.codigo_contrato || c?.id?.slice(0, 6)} — ${inq} (Saldo: R$ ${saldo.toFixed(2)})`,
+                        label: `Parcela ${parcStr} — ${comp} — ${c?.codigo || c?.codigo_contrato || c?.id?.slice(0, 6)} — ${inq} (Saldo: R$ ${saldo.toFixed(2)})`,
                       };
                     })}
                   />
@@ -257,7 +282,7 @@ export default async function PagamentosPage() {
       {/* Tabela de Histórico e Movimentações */}
       <div className="mt-8">
         <h3 className="text-base font-semibold mb-3 text-gray-800">Histórico de Movimentações e Caixa</h3>
-        <Table head={["Competência", "Contrato / Imóvel", "Inquilino", "Valor aluguel", "Total pago", "Saldo a pagar", "Status", "Entradas / Recibos Emitidos", "Ações"]}>
+        <Table head={["Parcela", "Competência", "Contrato / Imóvel", "Inquilino", "Valor aluguel", "Total pago", "Saldo a pagar", "Status", "Entradas / Recibos Emitidos", "Ações"]}>
           {(pagamentos ?? []).map((p) => {
             const contrato = Array.isArray(p.contratos) ? p.contratos[0] : p.contratos;
             const imovel = contrato?.imoveis;
@@ -269,9 +294,13 @@ export default async function PagamentosPage() {
 
             const isPendente = p.status === "pendente" || p.status === "atrasado";
             const movimentacoes: any[] = Array.isArray(p.movimentacoes_pagamento) ? p.movimentacoes_pagamento : [];
+            const parcelaIdentificacao = calcularIdentificacaoParcela(contrato, p.competencia);
 
             return (
               <tr key={p.id} style={{ borderTop: "1px solid var(--color-line)" }}>
+                <td className="px-4 py-2.5 whitespace-nowrap font-bold text-emerald-700">
+                  {parcelaIdentificacao}
+                </td>
                 <td className="px-4 py-2.5 whitespace-nowrap font-medium">
                   {formatarDataSegura(p.competencia, { month: "2-digit", year: "numeric" })}
                 </td>

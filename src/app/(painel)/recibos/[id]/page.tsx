@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
+import { PrintButton } from "./print-button";
 
 function formatarEnderecoImovel(imovel: any): string {
   if (!imovel) return "Endereço não informado";
@@ -151,33 +152,9 @@ export default async function ReciboPage(props: {
 
     return (
       <div className="min-h-screen bg-gray-100 p-6 print:p-0 print:bg-white flex flex-col items-center">
-        {/* Botão de Impressão nativo com Script embutido seguro */}
+        {/* Botão de Impressão isolado em Client Component */}
         <div className="mb-6 print:hidden flex gap-3">
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                function imprimirRecibo() {
-                  window.print();
-                }
-              `,
-            }}
-          />
-          <button
-            onClick={new Function('window.print()') as any}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded shadow transition cursor-pointer"
-            id="btn-imprimir"
-          >
-            🖨️ Imprimir Recibo
-          </button>
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                document.getElementById('btn-imprimir').onclick = function() {
-                  window.print();
-                };
-              `,
-            }}
-          />
+          <PrintButton />
         </div>
 
         {/* Modelo de Recibo */}

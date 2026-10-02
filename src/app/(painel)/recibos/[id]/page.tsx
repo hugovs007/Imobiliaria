@@ -26,22 +26,26 @@ function formatarDataBR(dataRaw: string | null | undefined): string {
   }
 }
 
-export default async function ReciboPage({
-  params,
-  searchParams,
-}: {
+export default async function ReciboPage(props: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tipo?: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   try {
-    const { id } = await params;
-    const { tipo } = await searchParams;
-    const supabase = await createClient();
+    const params = await props.params;
+    const searchParams = await props.searchParams;
+    
+    const id = params?.id;
+    const tipo = searchParams?.tipo;
 
+    if (!id) {
+      notFound();
+    }
+
+    const supabase = await createClient();
     let dadosRecibo: any = null;
 
     if (tipo === "movimentacao") {
-      // 1. Busca a movimentação individual do PDV
+      // 1. Busca a movimentação individual
       const { data: mov, error: movErr } = await supabase
         .from("movimentacoes_pagamento")
         .select("*")
@@ -49,38 +53,50 @@ export default async function ReciboPage({
         .maybeSingle();
 
       if (movErr || !mov) {
-        console.error("Erro ao buscar movimentação:", movErr?.message);
+        console.error("Erro movimentacao:", movErr?.message);
         notFound();
       }
 
-      // 2. Busca o pagamento pai e o contrato vinculado
+      // 2. Busca o pagamento pai
       const { data: pagamento, error: pagErr } = await supabase
         .from("pagamentos")
-        .select(`
-          *,
-          contratos (
-            *,
-            imoveis (*),
-            inquilinos (*)
-          )
-        `)
+        .select("*")
         .eq("id", mov.pagamento_id)
         .maybeSingle();
 
       if (pagErr || !pagamento) {
-        console.error("Erro ao buscar pagamento pai:", pagErr?.message);
+        console.error("Erro pagamento:", pagErr?.message);
         notFound();
       }
 
-      const contrato = Array.isArray(pagamento?.contratos) ? pagamento.contratos[0] : pagamento?.contratos;
+      // 3. Busca o contrato
+      const { data: contrato } = await supabase
+        .from("contratos")
+        .select("*")
+        .eq("id", pagamento.contrato_id)
+        .maybeSingle();
+
+      // 4. Busca o imóvel
+      let imovel = null;
+      if (contrato?.imovel_id) {
+        const { data: imovData } = await supabase.from("imoveis").select("*").eq("id", contrato.imovel_id).maybeSingle();
+        imovel = imovData;
+      }
+
+      // 5. Busca o inquilino
+      let inquilino = null;
+      if (contrato?.inquilino_id) {
+        const { data: inqData } = await supabase.from("inquilinos").select("*").eq("id", contrato.inquilino_id).maybeSingle();
+        inquilino = inqData;
+      }
 
       dadosRecibo = {
         titulo: "RECIBO DE PAGAMENTO",
         subtitulo: "Comprovante de Entrada Financeira / PDV",
-        codigo: contrato?.codigo || contrato?.codigo_contrato || "—",
-        inquilino: contrato?.inquilinos?.nome || "Inquilino não informado",
-        cpfCnpj: contrato?.inquilinos?.cpf || contrato?.inquilinos?.cnpj || "—",
-        enderecoImovel: formatarEnderecoImovel(contrato?.imoveis),
+        codigo: contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—",
+        inquilino: inquilino?.nome || "Inquilino não informado",
+        cpfCnpj: inquilino?.cpf || inquilino?.cnpj || "—",
+        enderecoImovel: formatarEnderecoImovel(imovel),
         competencia: formatarDataBR(pagamento?.competencia),
         valorBase: Number(pagamento?.valor_base || 0),
         valorRecebido: Number(mov.valor_pago || 0),
@@ -91,17 +107,10 @@ export default async function ReciboPage({
         observacoes: mov.observacoes || "—",
       };
     } else {
-      // Busca pelo ID geral do pagamento
+      // Busca geral pelo ID do pagamento
       const { data: pagamento, error: pagErr } = await supabase
         .from("pagamentos")
-        .select(`
-          *,
-          contratos (
-            *,
-            imoveis (*),
-            inquilinos (*)
-          )
-        `)
+        .select("*")
         .eq("id", id)
         .maybeSingle();
 
@@ -109,17 +118,34 @@ export default async function ReciboPage({
         notFound();
       }
 
-      const contrato = Array.isArray(pagamento?.contratos) ? pagamento.contratos[0] : pagamento?.contratos;
+      let contrato = null;
+      if (pagamento.contrato_id) {
+        const { data: contData } = await supabase.from("contratos").select("*").eq("id", pagamento.contrato_id).maybeSingle();
+        contrato = contData;
+      }
+
+      let imovel = null;
+      if (contrato?.imovel_id) {
+        const { data: imovData } = await supabase.from("imoveis").select("*").eq("id", contrato.imovel_id).maybeSingle();
+        imovel = imovData;
+      }
+
+      let inquilino = null;
+      if (contrato?.inquilino_id) {
+        const { data: inqData } = await supabase.from("inquilinos").select("*").eq("id", contrato.inquilino_id).maybeSingle();
+        inquilino = inqData;
+      }
+
       const valorBase = Number(pagamento?.valor_base || 0);
       const valorPago = Number(pagamento?.valor_pago || 0);
 
       dadosRecibo = {
         titulo: "RECIBO DE PARCELA / ALUGUEL",
         subtitulo: "Comprovante Geral de Lançamento",
-        codigo: contrato?.codigo || contrato?.codigo_contrato || "—",
-        inquilino: contrato?.inquilinos?.nome || "Inquilino não informado",
-        cpfCnpj: contrato?.inquilinos?.cpf || contrato?.inquilinos?.cnpj || "—",
-        enderecoImovel: formatarEnderecoImovel(contrato?.imoveis),
+        codigo: contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—",
+        inquilino: inquilino?.nome || "Inquilino não informado",
+        cpfCnpj: inquilino?.cpf || inquilino?.cnpj || "—",
+        enderecoImovel: formatarEnderecoImovel(imovel),
         competencia: formatarDataBR(pagamento?.competencia),
         valorBase,
         valorRecebido: valorPago,
@@ -143,7 +169,7 @@ export default async function ReciboPage({
           </button>
         </div>
 
-        {/* Modelo de Recibo A4 / Impressora Térmica */}
+        {/* Modelo de Recibo */}
         <div className="bg-white border-2 border-gray-800 rounded-lg p-8 w-full max-w-2xl shadow-lg print:shadow-none print:border-black print:w-full">
           <div className="border-b-2 border-gray-800 pb-4 mb-6 flex justify-between items-center">
             <div>
@@ -187,7 +213,6 @@ export default async function ReciboPage({
             </div>
           </div>
 
-          {/* Detalhes da Entrada PDV */}
           <div className="border-2 border-emerald-600 bg-emerald-50 rounded p-4 mb-6 text-center">
             <span className="text-xs font-semibold uppercase text-emerald-800 tracking-wider block">Valor Recebido Nesta Entrada</span>
             <span className="text-3xl font-extrabold text-emerald-900 block my-1">
@@ -205,7 +230,6 @@ export default async function ReciboPage({
             </div>
           )}
 
-          {/* Assinatura */}
           <div className="mt-12 pt-8 border-t border-gray-400 flex justify-between items-end text-xs text-gray-600">
             <div>
               <span>Data de emissão: {new Date().toLocaleDateString("pt-BR")}</span>
@@ -218,11 +242,11 @@ export default async function ReciboPage({
       </div>
     );
   } catch (err: any) {
-    console.error("Erro crítico na renderização do recibo:", err);
+    console.error("Erro interno ao renderizar recibo:", err);
     return (
-      <div className="p-8 text-center">
-        <h2 className="text-lg font-bold text-red-600 mb-2">Erro ao gerar o recibo</h2>
-        <p className="text-sm text-gray-700">{err?.message || "Erro desconhecido no servidor."}</p>
+      <div className="p-8 text-center bg-white min-h-screen flex flex-col items-center justify-center">
+        <h2 className="text-xl font-bold text-red-600 mb-2">Erro ao carregar o recibo</h2>
+        <p className="text-sm text-gray-600 max-w-md">Detalhes: {err?.message || "Ocorreu um erro inesperado ao processar os dados do recibo."}</p>
       </div>
     );
   }

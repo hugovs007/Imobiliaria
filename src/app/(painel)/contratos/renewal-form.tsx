@@ -25,14 +25,13 @@ export function RenewalForm({
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Calcula o novo início somando a periodicidade em meses diretamente à data de início do contrato selecionado
+  // Soma a periodicidade em meses diretamente à data de início do contrato selecionado
   const calcularDataInicioRenovacao = () => {
     try {
       if (startDate) {
-        // Trata a string de data (YYYY-MM-DD) garantindo fuso horário local
-        const [ ano, mes, dia ] = startDate.split("T")[0].split("-").map(Number);
+        const [ano, mes, dia] = startDate.split("T")[0].split("-").map(Number);
         if (ano && mes && dia) {
-          const dataObj = new Date(ano, mes - 1 + Number(periodicidadeMeses || 12), dia);
+          const dataObj = new Date(ano, (mes - 1) + Number(periodicidadeMeses || 12), dia);
           return dataObj.toISOString().split("T")[0];
         }
       }

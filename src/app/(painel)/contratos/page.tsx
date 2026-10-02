@@ -6,13 +6,6 @@ import { RenewalForm } from "./renewal-form";
 import { FormCriarContrato } from "./form-criar-contrato";
 import { aplicarReajuste, gerarReajustesPendentes } from "./actions";
 
-function dataSeguinte(data: string | null) {
-  if (!data) return new Date().toISOString().slice(0, 10);
-  const proxima = new Date(`${data.slice(0, 10)}T00:00:00Z`);
-  proxima.setUTCDate(proxima.getUTCDate() + 1);
-  return proxima.toISOString().slice(0, 10);
-}
-
 type ImovelContrato = {
   id: string;
   codigo: string | null;
@@ -186,6 +179,7 @@ export default async function ContratosPage() {
               const valorExibido = c.valor_aluguel ?? c.valor_atual ?? c.valor_aluguel_atual ?? 0;
               const contratoAtivo = c.ativo !== false;
               const codigoContrato = extrairCodigoExibicao(c);
+              const periodicidade = Number(c.periodicidade_reajuste_meses || 12);
 
               return (
                 <tr key={c.id} style={{ borderTop: "1px solid var(--color-line)" }}>
@@ -219,9 +213,10 @@ export default async function ContratosPage() {
                           <RenewalForm
                             contractId={c.id}
                             contractCode={codigoContrato}
-                            startDate={dataSeguinte(c.data_fim)}
+                            startDate={c.data_inicio}
                             currentRent={valorExibido}
                             index={c.indice_reajuste || "IGP-M"}
+                            periodicidadeMeses={periodicidade}
                           />
                         </>
                       )}

@@ -11,7 +11,6 @@ interface RenewalFormProps {
   currentRent: number;
   index: string;
   periodicidadeMeses?: number;
-  endDate?: string | null;
 }
 
 export function RenewalForm({
@@ -21,28 +20,20 @@ export function RenewalForm({
   currentRent,
   index,
   periodicidadeMeses = 12,
-  endDate,
 }: RenewalFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Calcula automaticamente a data de início da renovação:
-  // Se houver data de término, começa no dia seguinte; senão, soma a periodicidade (ex: 12 meses) à data de início anterior.
-  const calcularDataInicioSugerida = () => {
+  // Calcula o novo início somando a periodicidade em meses diretamente à data de início do contrato selecionado
+  const calcularDataInicioRenovacao = () => {
     try {
-      if (endDate) {
-        const dataFim = new Date(endDate + (endDate.includes("T") ? "" : "T00:00:00"));
-        if (!isNaN(dataFim.getTime())) {
-          dataFim.setDate(dataFim.getDate() + 1);
-          return dataFim.toISOString().split("T")[0];
-        }
-      }
       if (startDate) {
-        const dataInicio = new Date(startDate + (startDate.includes("T") ? "" : "T00:00:00"));
-        if (!isNaN(dataInicio.getTime())) {
-          dataInicio.setMonth(dataInicio.getMonth() + Number(periodicidadeMeses || 12));
-          return dataInicio.toISOString().split("T")[0];
+        // Trata a string de data (YYYY-MM-DD) garantindo fuso horário local
+        const [ ano, mes, dia ] = startDate.split("T")[0].split("-").map(Number);
+        if (ano && mes && dia) {
+          const dataObj = new Date(ano, mes - 1 + Number(periodicidadeMeses || 12), dia);
+          return dataObj.toISOString().split("T")[0];
         }
       }
     } catch {
@@ -51,7 +42,7 @@ export function RenewalForm({
     return new Date().toISOString().split("T")[0];
   };
 
-  const dataSugerida = calcularDataInicioSugerida();
+  const dataSugerida = calcularDataInicioRenovacao();
 
   function handleOpen() {
     dialogRef.current?.showModal();
@@ -143,7 +134,7 @@ export function RenewalForm({
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
             <input type="hidden" name="contrato_id" value={contractId} />
 
             <label className="flex flex-col gap-1 text-sm">
@@ -158,20 +149,13 @@ export function RenewalForm({
               />
             </label>
 
-            <div className="flex flex-col justify-center gap-1 text-sm">
-              <span style={{ color: "var(--color-ink-soft)" }}>Duração do novo contrato</span>
-              <span className="rounded-sm border px-3 py-2 bg-gray-50" style={{ borderColor: "var(--color-line)" }}>
-                {periodicidadeMeses} meses; término calculado automaticamente
-              </span>
-            </div>
-
             {error && (
-              <p role="alert" className="text-sm sm:col-span-2" style={{ color: "var(--color-alert)" }}>
+              <p role="alert" className="text-sm" style={{ color: "var(--color-alert)" }}>
                 {error}
               </p>
             )}
 
-            <div className="flex justify-end gap-2 border-t pt-4 sm:col-span-2" style={{ borderColor: "var(--color-line)" }}>
+            <div className="flex justify-end gap-2 border-t pt-4" style={{ borderColor: "var(--color-line)" }}>
               <button
                 type="button"
                 onClick={handleClose}

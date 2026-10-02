@@ -151,14 +151,14 @@ export default async function ReciboPage(props: {
     }
 
     return (
-      <div className="min-h-screen bg-gray-100 p-6 print:p-0 print:bg-white flex flex-col items-center">
-        {/* Botão de Impressão isolado em Client Component */}
+      <div className="min-h-screen bg-gray-100 p-6 print:p-0 print:m-0 print:bg-white flex flex-col items-center">
+        {/* Botão de Impressão (Oculto na Impressão) */}
         <div className="mb-6 print:hidden flex gap-3">
           <PrintButton />
         </div>
 
-        {/* Modelo de Recibo */}
-        <div className="bg-white border-2 border-gray-800 rounded-lg p-8 w-full max-w-2xl shadow-lg print:shadow-none print:border-black print:w-full">
+        {/* Modelo de Recibo com regras de estilo para papel */}
+        <div className="bg-white border-2 border-gray-800 rounded-lg p-8 w-full max-w-2xl shadow-lg print:shadow-none print:border-black print:w-full print:m-0 print:absolute print:inset-0 print:rounded-none">
           <div className="border-b-2 border-gray-800 pb-4 mb-6 flex justify-between items-center">
             <div>
               <h1 className="text-xl font-bold uppercase tracking-wide text-gray-900">{dadosRecibo.titulo}</h1>
@@ -182,7 +182,7 @@ export default async function ReciboPage(props: {
             </div>
           </div>
 
-          <div className="bg-gray-50 border border-gray-300 rounded p-4 mb-6 grid grid-cols-2 gap-4 text-sm">
+          <div className="bg-gray-50 border border-gray-300 rounded p-4 mb-6 grid grid-cols-2 gap-4 text-sm print:bg-white print:border-black">
             <div>
               <span className="text-xs text-gray-500 block">Competência (Mês)</span>
               <strong>{dadosRecibo.competencia}</strong>
@@ -201,7 +201,7 @@ export default async function ReciboPage(props: {
             </div>
           </div>
 
-          <div className="border-2 border-emerald-600 bg-emerald-50 rounded p-4 mb-6 text-center">
+          <div className="border-2 border-emerald-600 bg-emerald-50 rounded p-4 mb-6 text-center print:bg-white print:border-black">
             <span className="text-xs font-semibold uppercase text-emerald-800 tracking-wider block">Valor Recebido Nesta Entrada</span>
             <span className="text-3xl font-extrabold text-emerald-900 block my-1">
               R$ {dadosRecibo.valorRecebido.toFixed(2)}

@@ -99,7 +99,6 @@ function calcularIdentificacaoParcela(contrato: any, competencia: string): strin
     const diffMeses = dataCompetencia.getMonth() - dataInicio.getMonth();
     const parcelaAtual = diffAnos * 12 + diffMeses + 1;
     
-    // Total de meses do contrato (padrão 12 meses por período)
     const mesesContrato = Number(contrato.periodicidade_reajuste_meses || 12);
     const parcelaExibida = Math.max(1, parcelaAtual <= mesesContrato ? parcelaAtual : ((parcelaAtual - 1) % mesesContrato) + 1);
 
@@ -109,17 +108,33 @@ function calcularIdentificacaoParcela(contrato: any, competencia: string): strin
   }
 }
 
-function calcularPeriodoMesVigente(competenciaRaw: string | null | undefined, diaVencimento: number = 10): { inicio: string; fim: string } {
-  if (!competenciaRaw) return { inicio: "—", fim: "—" };
+function calcularPeriodoVigente(competenciaRaw: string | null | undefined, dataVencimentoParam: string | null | undefined, diaVencimentoContrato: number = 5): { inicio: string; fim: string } {
   try {
-    const [anoStr, mesStr] = competenciaRaw.slice(0, 7).split("-");
-    const ano = parseInt(anoStr, 10);
-    const mes = parseInt(mesStr, 10) - 1; // 0 indexado
+    let ano: number, mes: number, dia: number;
 
-    // O período do mês vigente geralmente começa no dia de vencimento do mês anterior e vai até o vencimento do mês atual (ou do dia 1 ao fim do mês)
-    const dataInicio = new Date(ano, mes - 1, diaVencimento);
-    const dataFim = new Date(ano, mes, diaVencimento);
-    dataFim.setDate(dataFim.getDate() - 1); // Dia anterior ao vencimento do mês atual
+    if (dataVencimentoParam) {
+      const [vAno, vMes, vDia] = dataVencimentoParam.slice(0, 10).split("-").map(Number);
+      ano = vAno;
+      mes = vMes - 1;
+      dia = vDia;
+    } else if (competenciaRaw) {
+      const [cAno, cMes] = competenciaRaw.slice(0, 7).split("-").map(Number);
+      ano = cAno;
+      mes = cMes - 1;
+      dia = diaVencimentoContrato || 5;
+    } else {
+      const hoje = new Date();
+      ano = hoje.getFullYear();
+      mes = hoje.getMonth();
+      dia = diaVencimentoContrato || 5;
+    }
+
+    // Início: data de vencimento do mês vigente
+    const dataInicio = new Date(ano, mes, dia);
+
+    // Fim: exatamente 30 dias após o início (ou o dia anterior ao vencimento do próximo mês)
+    const dataFim = new Date(dataInicio);
+    dataFim.setDate(dataFim.getDate() + 30);
 
     return {
       inicio: dataInicio.toLocaleDateString("pt-BR"),
@@ -188,7 +203,7 @@ export default async function ReciboPage(props: {
       }
 
       const parcelaFormatada = calcularIdentificacaoParcela(contrato, pagamento?.competencia);
-      const periodoVigencia = calcularPeriodoMesVigente(pagamento?.competencia, contrato?.dia_vencimento || 10);
+      const periodoVigencia = calcularPeriodoVigente(pagamento?.competencia, pagamento?.data_vencimento, contrato?.dia_vencimento || 5);
       const valorBase = Number(pagamento?.valor_base || 0);
       const valorPago = Number(mov.valor_pago || 0);
 
@@ -205,7 +220,6 @@ export default async function ReciboPage(props: {
         valorRecebidoExtenso: numeroParaExtenso(valorPago),
         formaPagamento: mov.forma_pagamento || "PIX",
         dataPagamento: formatarDataBR(mov.data_pagamento),
-        dataPagamentoExtenso: formatarDataBR(mov.data_pagamento),
         saldoAnterior: Number(mov.saldo_anterior || 0),
         saldoRestante: Number(mov.saldo_restante || 0),
         observacoes: mov.observacoes || "—",
@@ -244,7 +258,7 @@ export default async function ReciboPage(props: {
       const valorBase = Number(pagamento?.valor_base || 0);
       const valorPago = Number(pagamento?.valor_pago || valorBase);
       const parcelaFormatada = calcularIdentificacaoParcela(contrato, pagamento?.competencia);
-      const periodoVigencia = calcularPeriodoMesVigente(pagamento?.competencia, contrato?.dia_vencimento || 10);
+      const periodoVigencia = calcularPeriodoVigente(pagamento?.competencia, pagamento?.data_vencimento, contrato?.dia_vencimento || 5);
 
       dadosRecibo = {
         titulo: `RECIBO ${parcelaFormatada}`,
@@ -259,7 +273,6 @@ export default async function ReciboPage(props: {
         valorRecebidoExtenso: numeroParaExtenso(valorPago),
         formaPagamento: "Diversas",
         dataPagamento: formatarDataBR(pagamento?.data_pagamento),
-        dataPagamentoExtenso: formatarDataBR(pagamento?.data_pagamento),
         saldoAnterior: valorBase,
         saldoRestante: Math.max(0, valorBase - valorPago),
         observacoes: pagamento?.observacoes || "—",
@@ -270,12 +283,12 @@ export default async function ReciboPage(props: {
 
     return (
       <div className="min-h-screen bg-gray-100 p-6 print:p-0 print:m-0 print:bg-white flex flex-col items-center">
-        {/* Botão de Impressão (Oculto na Impressão) */}
+        {/* Botão de Impressão */}
         <div className="mb-6 print:hidden flex gap-3">
           <PrintButton />
         </div>
 
-        {/* Recibo Unificado (Caixas + Texto Clássico) */}
+        {/* Recibo Unificado */}
         <div className="bg-white border-2 border-gray-800 rounded-lg p-8 w-full max-w-2xl shadow-lg print:shadow-none print:border-black print:w-full print:m-0 print:absolute print:inset-0 print:rounded-none">
           
           {/* Cabeçalho */}
@@ -303,7 +316,7 @@ export default async function ReciboPage(props: {
             </div>
           </div>
 
-          {/* Bloco de Declaração Corrida (Texto Clássico Solicitado) */}
+          {/* Bloco de Declaração Corrida */}
           <div className="bg-gray-50 border border-gray-300 rounded p-5 mb-6 text-justify text-base leading-relaxed font-sans print:bg-white print:border-black">
             Recebi da Sr(a). <strong className="uppercase">{dadosRecibo.inquilino}</strong> a quantia de{" "}
             <strong>R$ {dadosRecibo.valorRecebido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ({dadosRecibo.valorRecebidoExtenso})</strong>, referente ao aluguel do mês de <strong className="uppercase">{dadosRecibo.competenciaTexto}</strong>, de um imóvel {dadosRecibo.tipoImovel} localizado na {dadosRecibo.enderecoImovel}.
@@ -337,22 +350,21 @@ export default async function ReciboPage(props: {
             Para clareza, firmo o presente dando plena e total quitação.
           </div>
 
-          {/* Cidade, Data e Assinatura */}
-          <div className="mt-8 pt-6 border-t border-gray-400 flex justify-between items-end text-xs text-gray-700">
-            <div>
-              <span>Santa Luzia – PB, {dadosRecibo.dataPagamento}</span>
+          {/* Data de Recebimento e Assinatura Ampliada e Centralizada */}
+          <div className="mt-12 pt-6 flex flex-col items-center text-center font-sans">
+            <div className="text-base mb-10 font-semibold text-gray-800">
+              Santa Luzia – PB, {dadosRecibo.dataPagamento}
             </div>
-            <div className="text-center w-52 pt-1">
-              <div className="border-t border-gray-800 pt-1 font-bold">
-                Paulo Sérgio de Souza Tôrres (RECEBEDOR)
-              </div>
+            <div className="w-[28rem] border-t-2 border-gray-900 pt-3">
+              <span className="font-extrabold text-lg text-gray-900 block tracking-wide">Paulo Sérgio de Souza Tôrres</span>
+              <span className="text-xs font-bold text-gray-600 tracking-widest uppercase mt-0.5 block">RECEBEDOR</span>
             </div>
           </div>
 
           {/* Período de Referência no Rodapé */}
-          <div className="mt-8 pt-3 border-t border-gray-200 flex justify-between text-[11px] font-mono text-gray-500">
+          <div className="mt-12 pt-3 border-t border-gray-200 flex justify-between text-[11px] font-mono text-gray-500">
             <span>Período Vigente do Mês:</span>
-            <span>De: {dadosRecibo.periodoInicio} &nbsp;&nbsp;|&nbsp;&nbsp; Até: {dadosRecibo.periodoFim}</span>
+            <span>De: {dadosRecibo.periodoInicio} &nbsp;&nbsp;a&nbsp;&nbsp; {dadosRecibo.periodoFim}</span>
           </div>
 
         </div>

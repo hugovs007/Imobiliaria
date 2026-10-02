@@ -13,77 +13,29 @@ function formatarEnderecoImovel(imovel: any): string {
     cidadeUf,
   ].filter(Boolean);
 
-  return partes.length > 0 ? partes.join(", ") : "Endereço não informado";
+  return partes.length > 0 ? partes.join(" - ") : "Endereço não informado";
 }
 
-function numeroParaExtenso(valor: number): string {
-  if (isNaN(valor) || valor <= 0) return "ZERO REAIS";
-  
-  const unidades = ["", "UM", "DOIS", "TRÊS", "QUATRO", "CINCO", "SEIS", "SETE", "OITO", "NOVE", "DEZ", "ONZE", "DOZE", "TREZE", "CATORZE", "QUINZE", "DEZESSEIS", "DEZESSETE", "DEZOITO", "DEZENOVE"];
-  const dezenas = ["", "", "VINTE", "TRINTA", "QUARENTA", "CINQUENTA", "SESSENTA", "SETENTA", "OITENTA", "NOVENTA"];
-  const centenas = ["", "CENTO", "DUZENTOS", "TREZENTOS", "QUATROCENTOS", "QUINHENTOS", "SEISCENTOS", "SETECENTOS", "OITOCENTOS", "NOVECENTOS"];
-
-  function converterInteiro(num: number): string {
-    if (num === 0) return "";
-    if (num === 100) return "CEM";
-    if (num < 20) return unidades[num];
-    if (num < 100) {
-      const d = Math.floor(num / 10);
-      const u = num % 10;
-      return dezenas[d] + (u > 0 ? " E " + unidades[u] : "");
-    }
-    const c = Math.floor(num / 100);
-    const resto = num % 100;
-    return centenas[c] + (resto > 0 ? " E " + converterInteiro(resto) : "");
-  }
-
-  const parteInteira = Math.floor(valor);
-  const centavos = Math.round((valor - parteInteira) * 100);
-
-  let resultado = "";
-  if (parteInteira === 1) {
-    resultado = "UM REAL";
-  } else if (parteInteira > 0) {
-    resultado = converterInteiro(parteInteira) + " REAIS";
-  }
-
-  if (centavos > 0) {
-    resultado += (resultado ? " E " : "") + converterInteiro(centavos) + (centavos === 1 ? " CENTAVO" : " CENTAVOS");
-  }
-
-  return resultado;
-}
-
-function formatarDataPorExtenso(dataRaw: string | null | undefined): string {
+function formatarDataBR(dataRaw: string | null | undefined): string {
   if (!dataRaw) return "—";
   try {
     const dataObj = new Date(dataRaw + (dataRaw.includes("T") ? "" : "T00:00:00"));
     if (isNaN(dataObj.getTime())) return "—";
-    
-    const meses = [
-      "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
-      "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
-    ];
-    
-    const dia = String(dataObj.getDate()).padStart(2, "0");
-    const mes = meses[dataObj.getMonth()];
-    const ano = dataObj.getFullYear();
-    
-    return `${dia} de ${mes} de ${ano}`;
+    return dataObj.toLocaleDateString("pt-BR");
   } catch {
     return "—";
   }
 }
 
 function calcularIdentificacaoParcela(contrato: any, competencia: string): string {
-  if (!contrato?.data_inicio || !contrato?.data_fim || !competencia) return "01/12";
+  if (!contrato?.data_inicio || !contrato?.data_fim || !competencia) return "—";
   try {
     const dataInicio = new Date(contrato.data_inicio);
     const dataFim = new Date(contrato.data_fim);
     const dataCompetencia = new Date(competencia);
     
     if (isNaN(dataInicio.getTime()) || isNaN(dataFim.getTime()) || isNaN(dataCompetencia.getTime())) {
-      return "01/12";
+      return "—";
     }
 
     const diferencaMeses = (dataFim.getFullYear() - dataInicio.getFullYear()) * 12 + dataFim.getMonth() - dataInicio.getMonth();
@@ -94,9 +46,9 @@ function calcularIdentificacaoParcela(contrato: any, competencia: string): strin
       return `${String(parcelaAtual).padStart(2, "0")}/${String(mesesContrato).padStart(2, "0")}`;
     }
   } catch {
-    return "01/12";
+    return "—";
   }
-  return "01/12";
+  return "—";
 }
 
 export default async function ReciboPage(props: {
@@ -157,21 +109,23 @@ export default async function ReciboPage(props: {
       }
 
       const parcelaFormatada = calcularIdentificacaoParcela(contrato, pagamento?.competencia);
-      const valorRecebido = Number(mov.valor_pago || 0);
 
       dadosRecibo = {
+        titulo: "RECIBO DE PAGAMENTO",
+        subtitulo: `Comprovante de Entrada Financeira / PDV`,
         parcela: parcelaFormatada,
-        valor: valorRecebido,
-        valorExtenso: numeroParaExtenso(valorRecebido),
+        codigo: contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—",
         inquilino: inquilino?.nome || "Inquilino não informado",
-        competenciaTexto: formatarDataPorExtenso(pagamento?.competencia),
+        cpfCnpj: inquilino?.cpf || inquilino?.cnpj || "—",
         enderecoImovel: formatarEnderecoImovel(imovel),
-        tipoImovel: imovel?.tipo || "residencial",
-        cidadeUf: `${imovel?.cidade || "Santa Luzia"} – ${imovel?.uf || imovel?.estado || "PB"}`,
-        dataEmissao: formatarDataPorExtenso(mov.data_pagamento || new Date().toISOString().split("T")[0]),
-        recebedor: "Paulo Sérgio de Souza Côrres",
-        dataInicioPeriodo: pagamento?.competencia ? new Date(pagamento.competencia).toLocaleDateString("pt-BR") : "—",
-        dataFimPeriodo: pagamento?.data_vencimento ? new Date(pagamento.data_vencimento).toLocaleDateString("pt-BR") : "—",
+        competencia: formatarDataBR(pagamento?.competencia),
+        valorBase: Number(pagamento?.valor_base || 0),
+        valorRecebido: Number(mov.valor_pago || 0),
+        formaPagamento: mov.forma_pagamento || "PIX",
+        dataPagamento: formatarDataBR(mov.data_pagamento),
+        saldoAnterior: Number(mov.saldo_anterior || 0),
+        saldoRestante: Number(mov.saldo_restante || 0),
+        observacoes: mov.observacoes || "—",
       };
     } else {
       const { data: pagamento, error: pagErr } = await supabase
@@ -202,69 +156,109 @@ export default async function ReciboPage(props: {
         inquilino = inqData;
       }
 
-      const valorPago = Number(pagamento?.valor_pago || pagamento?.valor_base || 0);
+      const valorBase = Number(pagamento?.valor_base || 0);
+      const valorPago = Number(pagamento?.valor_pago || 0);
       const parcelaFormatada = calcularIdentificacaoParcela(contrato, pagamento?.competencia);
 
       dadosRecibo = {
+        titulo: "RECIBO DE PARCELA / ALUGUEL",
+        subtitulo: `Comprovante Geral de Lançamento`,
         parcela: parcelaFormatada,
-        valor: valorPago,
-        valorExtenso: numeroParaExtenso(valorPago),
+        codigo: contrato?.codigo || contrato?.codigo_contrato || contrato?.id?.slice(0, 8) || "—",
         inquilino: inquilino?.nome || "Inquilino não informado",
-        competenciaTexto: formatarDataPorExtenso(pagamento?.competencia),
+        cpfCnpj: inquilino?.cpf || inquilino?.cnpj || "—",
         enderecoImovel: formatarEnderecoImovel(imovel),
-        tipoImovel: imovel?.tipo || "residencial",
-        cidadeUf: `${imovel?.cidade || "Santa Luzia"} – ${imovel?.uf || imovel?.estado || "PB"}`,
-        dataEmissao: formatarDataPorExtenso(pagamento?.data_pagamento || new Date().toISOString().split("T")[0]),
-        recebedor: "Paulo Sérgio de Souza Côrres",
-        dataInicioPeriodo: pagamento?.competencia ? new Date(pagamento.competencia).toLocaleDateString("pt-BR") : "—",
-        dataFimPeriodo: pagamento?.data_vencimento ? new Date(pagamento.data_vencimento).toLocaleDateString("pt-BR") : "—",
+        competencia: formatarDataBR(pagamento?.competencia),
+        valorBase,
+        valorRecebido: valorPago,
+        formaPagamento: "Diversas",
+        dataPagamento: formatarDataBR(pagamento?.data_pagamento),
+        saldoAnterior: valorBase,
+        saldoRestante: Math.max(0, valorBase - valorPago),
+        observacoes: pagamento?.observacoes || "—",
       };
     }
 
     return (
       <div className="min-h-screen bg-gray-100 p-6 print:p-0 print:m-0 print:bg-white flex flex-col items-center">
-        {/* Botão de Impressão */}
+        {/* Botão de Impressão (Oculto na Impressão) */}
         <div className="mb-6 print:hidden flex gap-3">
           <PrintButton />
         </div>
 
-        {/* Recibo com o layout exato solicitado */}
-        <div className="bg-white border-2 border-gray-400 rounded-md p-10 w-full max-w-2xl shadow-lg print:shadow-none print:border-none print:w-full print:m-0 print:absolute print:inset-0 font-serif text-black">
-          
-          {/* Cabeçalho */}
-          <div className="flex justify-between items-center text-lg font-bold mb-10">
-            <span>RECIBO {dadosRecibo.parcela}</span>
-            <span>R$ {dadosRecibo.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+        {/* Modelo de Recibo */}
+        <div className="bg-white border-2 border-gray-800 rounded-lg p-8 w-full max-w-2xl shadow-lg print:shadow-none print:border-black print:w-full print:m-0 print:absolute print:inset-0 print:rounded-none">
+          <div className="border-b-2 border-gray-800 pb-4 mb-6 flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold uppercase tracking-wide text-gray-900">{dadosRecibo.titulo}</h1>
+              <p className="text-xs text-gray-600">{dadosRecibo.subtitulo}</p>
+            </div>
+            <div className="text-right">
+              <span className="text-xs text-gray-500 block">Contrato Nº</span>
+              <span className="text-sm font-mono font-bold">{dadosRecibo.codigo}</span>
+            </div>
           </div>
 
-          {/* Corpo do Recibo (Declaração) */}
-          <div className="text-justify text-base leading-relaxed my-8 font-sans">
-            Recebi de <span className="uppercase font-bold">{dadosRecibo.inquilino}</span> a quantia de{" "}
-            <strong>R$ {dadosRecibo.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} ({dadosRecibo.valorExtenso})</strong>, referente ao aluguel do mês de <span className="uppercase font-bold">{dadosRecibo.competenciaTexto}</span>, de um imóvel {dadosRecibo.tipoImovel} localizado na {dadosRecibo.enderecoImovel}.
+          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+            <div>
+              <span className="text-xs text-gray-500 block">Inquilino (Pagador)</span>
+              <strong className="text-gray-900 block">{dadosRecibo.inquilino}</strong>
+              <span className="text-xs text-gray-600">CPF/CNPJ: {dadosRecibo.cpfCnpj}</span>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 block">Imóvel</span>
+              <span className="text-gray-900 font-medium block">{dadosRecibo.enderecoImovel}</span>
+            </div>
           </div>
 
-          {/* Fechamento */}
-          <div className="text-center text-base font-semibold my-12 font-sans">
-            Para clareza, firmo o presente dando plena e total quitação.
+          <div className="bg-gray-50 border border-gray-300 rounded p-4 mb-6 grid grid-cols-3 gap-4 text-sm print:bg-white print:border-black">
+            <div>
+              <span className="text-xs text-gray-500 block">Parcela</span>
+              <strong className="text-emerald-700 text-base">{dadosRecibo.parcela}</strong>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 block">Competência (Mês)</span>
+              <strong>{dadosRecibo.competencia}</strong>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 block">Data do Pagamento</span>
+              <strong>{dadosRecibo.dataPagamento}</strong>
+            </div>
+            <div>
+              <span className="text-xs text-gray-500 block">Forma de Pagamento</span>
+              <strong className="text-emerald-700">{dadosRecibo.formaPagamento}</strong>
+            </div>
+            <div className="col-span-2">
+              <span className="text-xs text-gray-500 block">Valor Total do Aluguel</span>
+              <span>R$ {dadosRecibo.valorBase.toFixed(2)}</span>
+            </div>
           </div>
 
-          {/* Cidade e Data */}
-          <div className="text-center text-base my-12 font-sans">
-            {dadosRecibo.cidadeUf}, {dadosRecibo.dataEmissao}
+          <div className="border-2 border-emerald-600 bg-emerald-50 rounded p-4 mb-6 text-center print:bg-white print:border-black">
+            <span className="text-xs font-semibold uppercase text-emerald-800 tracking-wider block">Valor Recebido Nesta Entrada</span>
+            <span className="text-3xl font-extrabold text-emerald-900 block my-1">
+              R$ {dadosRecibo.valorRecebido.toFixed(2)}
+            </span>
+            <div className="flex justify-center gap-6 mt-2 pt-2 border-t border-emerald-200 text-xs text-gray-700">
+              <span>Saldo Anterior: <strong>R$ {dadosRecibo.saldoAnterior.toFixed(2)}</strong></span>
+              <span>Saldo Restante a Pagar: <strong className="text-amber-800">R$ {dadosRecibo.saldoRestante.toFixed(2)}</strong></span>
+            </div>
           </div>
 
-          {/* Assinatura */}
-          <div className="mt-16 pt-6 flex flex-col items-center">
-            <div className="w-96 border-t-2 border-black mb-2"></div>
-            <span className="font-bold text-base font-sans">{dadosRecibo.recebedor}</span>
-          </div>
+          {dadosRecibo.observacoes !== "—" && (
+            <div className="mb-6 text-xs text-gray-600 border-l-2 border-gray-400 pl-3 italic">
+              Obs: {dadosRecibo.observacoes}
+            </div>
+          )}
 
-          {/* Período de Competência no Rodapé */}
-          <div className="mt-16 text-right text-xs font-mono font-bold leading-tight">
-            <div>De: {dadosRecibo.dataInicioPeriodo}</div>
-            <div>A: {dadosRecibo.dataFimPeriodo}</div>
+          <div className="mt-12 pt-8 border-t border-gray-400 flex justify-between items-end text-xs text-gray-600">
+            <div>
+              <span>Data de emissão: {new Date().toLocaleDateString("pt-BR")}</span>
+            </div>
+            <div className="text-center w-48 border-t border-gray-800 pt-1">
+              <span>Assinatura do Recebedor</span>
+            </div>
           </div>
-
         </div>
       </div>
     );

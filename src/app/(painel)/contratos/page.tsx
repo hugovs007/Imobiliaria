@@ -166,7 +166,7 @@ export default async function ContratosPage() {
       )}
 
       <div className="mt-10">
-        <Table head={["Código", "Imóvel", "Inquilino", "Início", "Aluguel atual", "Índice", "Status", "Ações"]}>
+        <Table head={["Código", "Imóvel / Inquilino", "Início", "Vencimento", "Aluguel atual", "Índice", "Status", "Ações"]}>
           {listaContratos.length === 0 ? (
             <tr style={{ borderTop: "1px solid var(--color-line)" }}>
               <td colSpan={8} className="px-4 py-4 text-center" style={{ color: "var(--color-ink-soft)" }}>
@@ -176,6 +176,7 @@ export default async function ContratosPage() {
           ) : (
             listaContratos.map((c) => {
               const imovel = c.imoveis as unknown as ImovelContrato;
+              const nomeInquilino = (c.inquilinos as unknown as { nome: string })?.nome ?? "Inquilino não informado";
               const valorExibido = c.valor_aluguel ?? c.valor_atual ?? c.valor_aluguel_atual ?? 0;
               const contratoAtivo = c.ativo !== false;
               const codigoContrato = extrairCodigoExibicao(c);
@@ -189,15 +190,16 @@ export default async function ContratosPage() {
                   <td className="px-4 py-2.5">
                     <div className="flex flex-col">
                       {imovel?.codigo && (
-                        <span className="font-mono text-xs" style={{ color: "var(--color-ink-soft)" }}>
+                        <span className="font-mono text-xs font-semibold" style={{ color: "var(--color-ink-soft)" }}>
                           {imovel.codigo}
                         </span>
                       )}
-                      <span>{enderecoCompleto(imovel)}</span>
+                      <span className="font-medium text-gray-900">{enderecoCompleto(imovel)}</span>
+                      <span className="text-xs text-emerald-700 font-semibold mt-0.5">👤 {nomeInquilino}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-2.5">{(c.inquilinos as unknown as { nome: string })?.nome ?? "—"}</td>
-                  <td className="px-4 py-2.5">{c.data_inicio ? new Date(c.data_inicio).toLocaleDateString("pt-BR") : "—"}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">{c.data_inicio ? new Date(c.data_inicio).toLocaleDateString("pt-BR") : "—"}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">{c.data_fim ? new Date(c.data_fim).toLocaleDateString("pt-BR") : "—"}</td>
                   <td className="px-4 py-2.5 font-semibold">
                     <Money value={valorExibido} />
                   </td>

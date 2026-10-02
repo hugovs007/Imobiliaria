@@ -151,14 +151,33 @@ export default async function ReciboPage(props: {
 
     return (
       <div className="min-h-screen bg-gray-100 p-6 print:p-0 print:bg-white flex flex-col items-center">
-        {/* Botão de Impressão via link javascript nativo sem hook de evento direto no server component */}
+        {/* Botão de Impressão nativo com Script embutido seguro */}
         <div className="mb-6 print:hidden flex gap-3">
-          <a
-            href="javascript:window.print()"
-            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded shadow transition inline-block text-center"
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                function imprimirRecibo() {
+                  window.print();
+                }
+              `,
+            }}
+          />
+          <button
+            onClick={new Function('window.print()') as any}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded shadow transition cursor-pointer"
+            id="btn-imprimir"
           >
             🖨️ Imprimir Recibo
-          </a>
+          </button>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                document.getElementById('btn-imprimir').onclick = function() {
+                  window.print();
+                };
+              `,
+            }}
+          />
         </div>
 
         {/* Modelo de Recibo */}

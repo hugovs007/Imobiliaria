@@ -1,10 +1,17 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Button } from "@/components/ui";
 import { renovarContrato } from "./actions";
 
-function moeda(valor: number) {
-  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+interface RenewalFormProps {
+  contractId: string;
+  contractCode: string;
+  startDate: string;
+  currentRent: number;
+  index: string;
+  periodicidadeMeses?: number;
+  endDate?: string | null;
 }
 
 export function RenewalForm({
@@ -13,35 +20,85 @@ export function RenewalForm({
   startDate,
   currentRent,
   index,
-}: {
-  contractId: string;
-  contractCode: string;
-  startDate: string;
-  currentRent: number;
-  index: string;
-}) {
+  periodicidadeMeses = 12,
+  endDate,
+}: RenewalFormProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function closeDialog() {
+  // Calcula automaticamente a data de início da renovação:
+  // Se houver data de término, começa no dia seguinte; senão, soma a periodicidade (ex: 12 meses) à data de início anterior.
+  const calcularDataInicioSugerida = () => {
+    try {
+      if (endDate) {
+        const dataFim = new Date(endDate + (endDate.includes("T") ? "" : "T00:00:00"));
+        if (!isNaN(dataFim.getTime())) {
+          dataFim.setDate(dataFim.getDate() + 1);
+          return dataFim.toISOString().split("T")[0];
+        }
+      }
+      if (startDate) {
+        const dataInicio = new Date(startDate + (startDate.includes("T") ? "" : "T00:00:00"));
+        if (!isNaN(dataInicio.getTime())) {
+          dataInicio.setMonth(dataInicio.getMonth() + Number(periodicidadeMeses || 12));
+          return dataInicio.toISOString().split("T")[0];
+        }
+      }
+    } catch {
+      // Fallback
+    }
+    return new Date().toISOString().split("T")[0];
+  };
+
+  const dataSugerida = calcularDataInicioSugerida();
+
+  function handleOpen() {
+    dialogRef.current?.showModal();
+    setError(null);
+  }
+
+  function handleClose() {
     dialogRef.current?.close();
     setError(null);
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsPending(true);
+    setError(null);
+
+    try {
+      const formData = new FormData(e.currentTarget);
+      const res = await renovarContrato(formData);
+
+      if (res?.error) {
+        setError(res.error);
+        return;
+      }
+
+      handleClose();
+    } catch (err: any) {
+      setError(err instanceof Error ? err.message : "Não foi possível renovar o contrato.");
+    } finally {
+      setIsPending(false);
+    }
   }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => dialogRef.current?.showModal()}
-        className="text-xs font-medium underline"
+        onClick={handleOpen}
+        className="text-xs font-medium underline cursor-pointer"
         style={{ color: "var(--color-teal)" }}
       >
         Renovar
       </button>
+
       <dialog
         ref={dialogRef}
-        onClose={() => setError(null)}
+        onClose={handleClose}
         className="m-auto max-h-[90vh] w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-md border bg-white p-0 shadow-2xl backdrop:bg-black/50"
         style={{ borderColor: "var(--color-line)" }}
       >
@@ -52,14 +109,14 @@ export function RenewalForm({
                 Renovar contrato
               </h2>
               <p className="mt-1 text-sm" style={{ color: "var(--color-ink-soft)" }}>
-                Contrato {contractCode}. O registro atual ficará intacto e um novo período de 12 meses será criado.
+                Contrato {contractCode}. O registro atual ficará intacto e um novo período de {periodicidadeMeses} meses será criado.
               </p>
             </div>
             <button
               type="button"
-              onClick={closeDialog}
+              onClick={handleClose}
               aria-label="Fechar"
-              className="rounded-sm px-2 py-1 text-lg leading-none"
+              className="rounded-sm px-2 py-1 text-lg leading-none cursor-pointer"
               style={{ color: "var(--color-ink-soft)" }}
             >
               ×
@@ -68,11 +125,17 @@ export function RenewalForm({
 
           <div className="mb-5 grid grid-cols-2 gap-3 rounded-sm border p-3 text-sm" style={{ borderColor: "var(--color-line)" }}>
             <div>
-              <p className="text-xs uppercase" style={{ color: "var(--color-ink-soft)" }}>Aluguel vigente</p>
-              <p className="mt-1 font-semibold">{moeda(currentRent)}</p>
+              <p className="text-xs uppercase" style={{ color: "var(--color-ink-soft)" }}>
+                Aluguel vigente
+              </p>
+              <p className="mt-1 font-semibold">
+                {currentRent.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              </p>
             </div>
             <div>
-              <p className="text-xs uppercase" style={{ color: "var(--color-ink-soft)" }}>Índice do contrato</p>
+              <p className="text-xs uppercase" style={{ color: "var(--color-ink-soft)" }}>
+                Índice do contrato
+              </p>
               <p className="mt-1 font-semibold">{index.toUpperCase()}</p>
             </div>
             <p className="col-span-2 text-xs leading-5" style={{ color: "var(--color-ink-soft)" }}>
@@ -80,65 +143,46 @@ export function RenewalForm({
             </p>
           </div>
 
-          <form
-            action={async (formData) => {
-              setIsSaving(true);
-              setError(null);
-              try {
-                const result = await renovarContrato(formData);
-                if (result.error) {
-                  setError(result.error);
-                  return;
-                }
-                closeDialog();
-              } catch (cause) {
-                setError(cause instanceof Error ? cause.message : "Não foi possível renovar o contrato.");
-              } finally {
-                setIsSaving(false);
-              }
-            }}
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-          >
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <input type="hidden" name="contrato_id" value={contractId} />
+
             <label className="flex flex-col gap-1 text-sm">
               <span style={{ color: "var(--color-ink-soft)" }}>Início do novo período</span>
               <input
                 name="data_inicio"
                 type="date"
                 required
-                defaultValue={startDate}
+                defaultValue={dataSugerida}
                 className="rounded-sm border px-3 py-2"
                 style={{ borderColor: "var(--color-line)" }}
               />
             </label>
+
             <div className="flex flex-col justify-center gap-1 text-sm">
               <span style={{ color: "var(--color-ink-soft)" }}>Duração do novo contrato</span>
-              <span className="rounded-sm border px-3 py-2" style={{ borderColor: "var(--color-line)" }}>
-                12 meses; término calculado automaticamente
+              <span className="rounded-sm border px-3 py-2 bg-gray-50" style={{ borderColor: "var(--color-line)" }}>
+                {periodicidadeMeses} meses; término calculado automaticamente
               </span>
             </div>
+
             {error && (
               <p role="alert" className="text-sm sm:col-span-2" style={{ color: "var(--color-alert)" }}>
                 {error}
               </p>
             )}
+
             <div className="flex justify-end gap-2 border-t pt-4 sm:col-span-2" style={{ borderColor: "var(--color-line)" }}>
               <button
                 type="button"
-                onClick={closeDialog}
-                className="rounded-sm border px-4 py-2 text-sm"
+                onClick={handleClose}
+                className="rounded-sm border px-4 py-2 text-sm font-medium cursor-pointer"
                 style={{ borderColor: "var(--color-line)", color: "var(--color-ink)" }}
               >
                 Cancelar
               </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="rounded-sm px-4 py-2 text-sm font-medium disabled:opacity-60"
-                style={{ background: "var(--color-teal)", color: "var(--color-paper)" }}
-              >
-                {isSaving ? "Renovando..." : "Confirmar renovação"}
-              </button>
+              <Button type="submit">
+                {isPending ? "Renovando..." : "Confirmar renovação"}
+              </Button>
             </div>
           </form>
         </div>

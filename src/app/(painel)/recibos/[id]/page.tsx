@@ -45,7 +45,6 @@ export default async function ReciboPage(props: {
     let dadosRecibo: any = null;
 
     if (tipo === "movimentacao") {
-      // 1. Busca a movimentação individual
       const { data: mov, error: movErr } = await supabase
         .from("movimentacoes_pagamento")
         .select("*")
@@ -53,11 +52,9 @@ export default async function ReciboPage(props: {
         .maybeSingle();
 
       if (movErr || !mov) {
-        console.error("Erro movimentacao:", movErr?.message);
         notFound();
       }
 
-      // 2. Busca o pagamento pai
       const { data: pagamento, error: pagErr } = await supabase
         .from("pagamentos")
         .select("*")
@@ -65,25 +62,21 @@ export default async function ReciboPage(props: {
         .maybeSingle();
 
       if (pagErr || !pagamento) {
-        console.error("Erro pagamento:", pagErr?.message);
         notFound();
       }
 
-      // 3. Busca o contrato
       const { data: contrato } = await supabase
         .from("contratos")
         .select("*")
         .eq("id", pagamento.contrato_id)
         .maybeSingle();
 
-      // 4. Busca o imóvel
       let imovel = null;
       if (contrato?.imovel_id) {
         const { data: imovData } = await supabase.from("imoveis").select("*").eq("id", contrato.imovel_id).maybeSingle();
         imovel = imovData;
       }
 
-      // 5. Busca o inquilino
       let inquilino = null;
       if (contrato?.inquilino_id) {
         const { data: inqData } = await supabase.from("inquilinos").select("*").eq("id", contrato.inquilino_id).maybeSingle();
@@ -107,7 +100,6 @@ export default async function ReciboPage(props: {
         observacoes: mov.observacoes || "—",
       };
     } else {
-      // Busca geral pelo ID do pagamento
       const { data: pagamento, error: pagErr } = await supabase
         .from("pagamentos")
         .select("*")
@@ -159,14 +151,14 @@ export default async function ReciboPage(props: {
 
     return (
       <div className="min-h-screen bg-gray-100 p-6 print:p-0 print:bg-white flex flex-col items-center">
-        {/* Botão de Impressão */}
+        {/* Botão de Impressão via link javascript nativo sem hook de evento direto no server component */}
         <div className="mb-6 print:hidden flex gap-3">
-          <button
-            onClick={() => window.print()}
-            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded shadow transition cursor-pointer"
+          <a
+            href="javascript:window.print()"
+            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-6 py-2.5 rounded shadow transition inline-block text-center"
           >
             🖨️ Imprimir Recibo
-          </button>
+          </a>
         </div>
 
         {/* Modelo de Recibo */}
